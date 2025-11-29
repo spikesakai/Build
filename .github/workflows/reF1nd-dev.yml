@@ -7,7 +7,7 @@ on:
         description: 'sing-box source (tag/branch/commit)'
         type: string
         required: false
-        default: 'reF1nd-main'
+        default: 'reF1nd-dev'
       build_version:
         description: 'Version string to embed (constant.Version) [required]'
         type: string
