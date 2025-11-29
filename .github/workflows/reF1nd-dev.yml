@@ -1,4 +1,4 @@
-name: Build Mini sing-box Core
+name: Build reF1nd-dev sing-box Core
 
 on:
   workflow_dispatch:
