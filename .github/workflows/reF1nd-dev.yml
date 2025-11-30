@@ -70,7 +70,7 @@ jobs:
       - name: Define build metadata
         id: meta
         run: |
-          TAGS="with_quic with_grpc with_dhcp with_utls with_gvisor with_clash_api with_ccm tfogo_checklinkname0"
+          TAGS="with_quic with_grpc with_dhcp with_utls with_gvisor with_clash_api tfogo_checklinkname0"
           OUT="sing-box-linux-arm64-${VERSION}-${SHORT_SHA}"
           ZIP="${OUT}.zip"
           TAG="sing-box-${VERSION}-${SHORT_SHA}"
