@@ -101,9 +101,11 @@ jobs:
       - name: Verify arch
         run: file "${OUT}"
 
+      - name: Package zip
+        run: |
+          install -m 0755 "${OUT}" sing-box
+          zip -9 -j "${ZIP}" sing-box
+          rm sing-box
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
-        with:
-          name: sing-box-linux-arm64-${{ steps.upstream.outputs.short }}
-          path: |
-            ${{ steps.meta.outputs.zip }}
