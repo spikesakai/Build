@@ -71,7 +71,7 @@ jobs:
         id: meta
         run: |
           TAGS="with_gvisor with_quic with_dhcp with_grpc with_utls with_clash_api badlinkname"
-          OUT="sing-box-${VERSION}-${SHORT_SHA}-linux-arm64"
+          OUT="sing-box-${VERSION}-linux-arm64"
           ZIP="${OUT}.zip"
           TAG="sing-box-${VERSION}-${SHORT_SHA}"
 
