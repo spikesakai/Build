@@ -3,11 +3,15 @@ name: Build reF1nd-dev sing-box Core
 on:
   workflow_dispatch:
     inputs:
-      source_ref:
-        description: 'Source ref to build (tag/branch/commit)'
+      version:
+        description: 'sing-box source (tag/branch/commit)'
+        type: string
+        required: false
+        default: 'reF1nd-dev'
+      build_version:
+        description: 'Version string to embed (constant.Version) [required]'
         type: string
         required: true
-        default: 'reF1nd-dev'
 
 jobs:
   build:
@@ -20,10 +24,14 @@ jobs:
         id: prep
         run: |
           UPSTREAM_REPO="https://github.com/reF1nd/sing-box.git"
-          REF="${{ github.event.inputs.source_ref }}"
+          REF="${{ github.event.inputs.version }}"
+          VERSION="${{ github.event.inputs.build_version }}"
+
           echo "REF=$REF" >> $GITHUB_ENV
           echo "UPSTREAM_REPO=$UPSTREAM_REPO" >> $GITHUB_ENV
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "ref=$REF" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "upstream=$UPSTREAM_REPO" >> $GITHUB_OUTPUT
 
       - name: Resolve SHA (tag/branch/commit)
