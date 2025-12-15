@@ -110,5 +110,6 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
+          name: sing-box-linux-arm64-${{ steps.upstream.outputs.short }}
           path: |
-            ${{ steps.meta.outputs }}
+            ${{ steps.meta.outputs.zip }}
