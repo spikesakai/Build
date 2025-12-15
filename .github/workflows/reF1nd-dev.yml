@@ -67,22 +67,6 @@ jobs:
         with:
           go-version: '1.25.5'
 
-      - name: Extract, Clean, and Prefix Version
-        id: extract_version
-        run: |
-          RAW_VERSION=$(go run ./cmd/internal/read_tag)
-          if [ -z "$RAW_VERSION" ]; then
-            echo "ERROR: 'go run ./cmd/internal/read_tag' failed to produce a version string."
-            exit 1
-          fi
-          echo "Raw version from tool: $RAW_VERSION"
-          CLEANED_VERSION=$(echo "$RAW_VERSION" | sed 's/-reF1nd$//')
-          echo "Cleaned version: $CLEANED_VERSION"
-          FINAL_VERSION="r${CLEANED_VERSION}"
-          echo "VERSION=$FINAL_VERSION" >> $GITHUB_ENV
-          echo "version=$FINAL_VERSION" >> $GITHUB_OUTPUT
-          echo "Successfully created final version: $FINAL_VERSION"
-
       - name: Define build metadata
         id: meta
         run: |
@@ -123,16 +107,12 @@ jobs:
           zip -9 -j "${ZIP}" sing-box
           rm sing-box
 
-      - name: SHA256
-        run: sha256sum "${ZIP}" > "${ZIP}.sha256"
-
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: sing-box-minimal-arm64-${{ steps.upstream.outputs.short }}
           path: |
             ${{ steps.meta.outputs.zip }}
-            ${{ steps.meta.outputs.zip }}.sha256
 
       - name: Release
         uses: softprops/action-gh-release@v2
@@ -146,4 +126,3 @@ jobs:
           prerelease: true
           files: |
             ${{ steps.meta.outputs.zip }}
-            ${{ steps.meta.outputs.zip }}.sha256
