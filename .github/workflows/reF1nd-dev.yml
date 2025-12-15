@@ -111,4 +111,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           path: |
-            ${{ steps.meta.outputs.zip }}
+            ${{ steps.meta.outputs }}
