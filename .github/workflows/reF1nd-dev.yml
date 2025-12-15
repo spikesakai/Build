@@ -71,7 +71,7 @@ jobs:
         id: meta
         run: |
           TAGS="with_gvisor with_quic with_dhcp with_grpc with_utls with_clash_api badlinkname"
-          OUT="sing-box-linux-arm64-${VERSION}-${SHORT_SHA}"
+          OUT="sing-box-${VERSION}-${SHORT_SHA}-linux-arm64"
           ZIP="${OUT}.zip"
           TAG="sing-box-${VERSION}-${SHORT_SHA}"
 
@@ -85,7 +85,7 @@ jobs:
           echo "zip=$ZIP" >> $GITHUB_OUTPUT
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-      - name: Build sing-box (arm64 minimal)
+      - name: Build sing-box (linux arm64)
         env:
           CGO_ENABLED: 0
           GOOS: linux
@@ -110,19 +110,6 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: sing-box-minimal-arm64-${{ steps.upstream.outputs.short }}
+          name: sing-box-linux-arm64-${{ steps.upstream.outputs.short }}
           path: |
-            ${{ steps.meta.outputs.zip }}
-
-      - name: Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.meta.outputs.tag }}
-          name: sing-box minimal (${{ steps.upstream.outputs.short }})
-          body: |
-            Source: reF1nd/sing-box @ ${{ env.VERSION }}
-            GOOS/GOARCH: linux/arm64
-            Tags: ${{ steps.meta.outputs.tags }}
-          prerelease: true
-          files: |
             ${{ steps.meta.outputs.zip }}
