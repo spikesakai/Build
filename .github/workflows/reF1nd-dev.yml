@@ -40,10 +40,7 @@ jobs:
           set -e
           SHA=$(git ls-remote --heads "${UPSTREAM_REPO}" "refs/heads/${REF}" | cut -f1)
           if [ -z "$SHA" ]; then
-            SHA=$(git ls-remote --tags "${UPSTREAM_REPO}" "refs/tags/${REF}" | cut -f1)
-          fi
-          if [ -z "$SHA" ]; then
-            SHA=$(git ls-remote --tags "${UPSTREAM_REPO}" "refs/tags/${REF}^{}" | cut -f1)
+            SHA=$(git ls-remote --tags "${UPSTREAM_REPO}" "${REF}^{}" | cut -f1)
           fi
           if [ -z "$SHA" ]; then
             SHA=$(git ls-remote "${UPSTREAM_REPO}" "${REF}" | cut -f1)
@@ -58,12 +55,12 @@ jobs:
           echo "sha=$SHA" >> $GITHUB_OUTPUT
           echo "short=$SHORT" >> $GITHUB_OUTPUT
 
-      - name: Checkout upstream with full history
+      - name: Checkout upstream
         uses: actions/checkout@v4
         with:
           repository: reF1nd/sing-box
           ref: ${{ steps.upstream.outputs.sha }}
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -104,7 +101,7 @@ jobs:
           echo "zip=$ZIP" >> $GITHUB_OUTPUT
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-      - name: Build sing-box (linux arm64)
+      - name: Build sing-box (arm64 minimal)
         env:
           CGO_ENABLED: 0
           GOOS: linux
@@ -126,18 +123,22 @@ jobs:
           zip -9 -j "${ZIP}" sing-box
           rm sing-box
 
+      - name: SHA256
+        run: sha256sum "${ZIP}" > "${ZIP}.sha256"
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: sing-box-linux-arm64-${{ steps.upstream.outputs.short }}
+          name: sing-box-minimal-arm64-${{ steps.upstream.outputs.short }}
           path: |
             ${{ steps.meta.outputs.zip }}
+            ${{ steps.meta.outputs.zip }}.sha256
 
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.meta.outputs.tag }}
-          name: sing-box linux (${{ steps.upstream.outputs.short }})
+          name: sing-box minimal (${{ steps.upstream.outputs.short }})
           body: |
             Source: reF1nd/sing-box @ ${{ env.VERSION }}
             GOOS/GOARCH: linux/arm64
@@ -145,3 +146,4 @@ jobs:
           prerelease: true
           files: |
             ${{ steps.meta.outputs.zip }}
+            ${{ steps.meta.outputs.zip }}.sha256
