@@ -62,6 +62,11 @@ jobs:
           ref: ${{ steps.upstream.outputs.sha }}
           fetch-depth: 1
 
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.5'
+
       - name: Clone cronet-go
         run: |
           set -xeuo pipefail
@@ -83,29 +88,18 @@ jobs:
           cd ~/cronet-go
           go run ./cmd/build-naive --target=linux/arm64 --libc=musl env >> $GITHUB_ENV
 
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.25.5'
-
       - name: Define build metadata
         id: meta
         run: |
           set -xeuo pipefail
           TAGS="with_gvisor with_quic with_dhcp with_grpc with_utls with_clash_api with_musl with_naive_outbound badlinkname"
           OUT="sing-box-${VERSION}-linux-arm64"
-          ZIP="${OUT}.zip"
-          TAG="sing-box-${VERSION}-${SHORT_SHA}"
 
           echo "TAGS=$TAGS" >> $GITHUB_ENV
           echo "OUT=$OUT" >> $GITHUB_ENV
-          echo "ZIP=$ZIP" >> $GITHUB_ENV
-          echo "TAG=$TAG" >> $GITHUB_ENV
 
           echo "tags=$TAGS" >> $GITHUB_OUTPUT
           echo "out=$OUT" >> $GITHUB_OUTPUT
-          echo "zip=$ZIP" >> $GITHUB_OUTPUT
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
 
       - name: Build sing-box (linux arm64)
         env:
@@ -124,15 +118,14 @@ jobs:
       - name: Verify arch
         run: file "${OUT}"
 
-      - name: Package zip
+      - name: Prepare executable file
         run: |
-          install -m 0755 "${OUT}" sing-box
-          zip -9 -j "${ZIP}" sing-box
-          rm sing-box
+          # 确保最终文件权限正确
+          chmod +x "${OUT}"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: sing-box-linux-arm64-${{ steps.upstream.outputs.short }}
+          name: sing-box-linux-arm64-naive-musl-${{ steps.upstream.outputs.short }}
           path: |
-            ${{ steps.meta.outputs.zip }}
+            ${{ steps.meta.outputs.out }}
