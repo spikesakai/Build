@@ -71,20 +71,20 @@ jobs:
         id: meta
         run: |
           set -xeuo pipefail
+          # 移除了 ZIP 变量的定义
           TAGS="with_gvisor with_quic with_dhcp with_grpc with_utls with_clash_api badlinkname"
           OUT="sing-box-${VERSION}-linux-arm64"
-          ZIP="${OUT}.zip"
-          TAG="sing-box-${VERSION}-${SHORT_SHA}"
+          # TAG="sing-box-${VERSION}-${SHORT_SHA}" # 如果不需要也可以删除
 
           echo "TAGS=$TAGS" >> $GITHUB_ENV
           echo "OUT=$OUT" >> $GITHUB_ENV
-          echo "ZIP=$ZIP" >> $GITHUB_ENV
-          echo "TAG=$TAG" >> $GITHUB_ENV
+          # echo "ZIP=$ZIP" >> $GITHUB_ENV # 移除了 ZIP 环境变量设置
+          # echo "TAG=$TAG" >> $GITHUB_ENV # 如果不需要也可以删除
 
           echo "tags=$TAGS" >> $GITHUB_OUTPUT
           echo "out=$OUT" >> $GITHUB_OUTPUT
-          echo "zip=$ZIP" >> $GITHUB_OUTPUT
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          # echo "zip=$ZIP" >> $GITHUB_OUTPUT # 移除了 ZIP 输出变量设置
+          # echo "tag=$TAG" >> $GITHUB_OUTPUT # 如果不需要也可以删除
 
       - name: Build sing-box (linux arm64)
         env:
@@ -103,15 +103,17 @@ jobs:
       - name: Verify arch
         run: file "${OUT}"
 
-      - name: Package zip
+      - name: Prepare executable file # 将 Package zip 步骤修改为只重命名并设置权限
         run: |
-          install -m 0755 "${OUT}" sing-box
-          zip -9 -j "${ZIP}" sing-box
-          rm sing-box
+          # 确保最终文件权限正确
+          chmod +x "${OUT}"
+          # 如果您需要一个特定的名字，可以使用 mv 命令
+          # mv "${OUT}" sing-box-final # 示例，可选
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: sing-box-linux-arm64-${{ steps.upstream.outputs.short }}
+          # 直接上传 OUT 变量指向的可执行文件
           path: |
-            ${{ steps.meta.outputs.zip }}
+            ${{ steps.meta.outputs.out }}
