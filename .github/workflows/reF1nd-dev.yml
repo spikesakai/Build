@@ -109,10 +109,11 @@ jobs:
 
       - name: Build sing-box (linux arm64)
         env:
-          CGO_ENABLED: 0
+          CGO_ENABLED: 1
           GOOS: linux
           GOARCH: arm64
         run: |
+          set -xeuo pipefail
           go build \
             -trimpath \
             -o "${OUT}" \
