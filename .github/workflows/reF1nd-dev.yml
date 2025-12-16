@@ -72,14 +72,6 @@ jobs:
           git -C ~/cronet-go checkout FETCH_HEAD
           git -C ~/cronet-go submodule update --init --recursive --depth=1
 
-      - name: Cache Chromium toolchain
-        id: cache-chromium-toolchain
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/cronet-go/naiveproxy/src/third_party/llvm-build/Release+Asserts
-            ~/cronet-go/naiveproxy/src/out/sysroot-build
-          key: chromium-toolchain-arm64-musl-${{ hashFiles('.github/CRONET_GO_VERSION') }}
       - name: Download Chromium toolchain
         run: |
           set -xeuo pipefail
