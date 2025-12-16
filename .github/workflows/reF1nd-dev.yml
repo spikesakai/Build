@@ -76,13 +76,13 @@ jobs:
         run: |
           set -xeuo pipefail
           cd ~/cronet-go
-          go run ./cmd/build-naive --target=linux/${{ matrix.arch }} --libc=musl download-toolchain
+          go run ./cmd/build-naive --target=linux/arm64 --libc=musl download-toolchain
 
       - name: Set Chromium toolchain environment
         run: |
           set -xeuo pipefail
           cd ~/cronet-go
-          go run ./cmd/build-naive --target=linux/${{ matrix.arch }} --libc=musl env >> $GITHUB_ENV
+          go run ./cmd/build-naive --target=linux/arm64 --libc=musl env >> $GITHUB_ENV
 
       - name: Setup Go
         uses: actions/setup-go@v5
