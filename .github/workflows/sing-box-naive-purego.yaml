@@ -81,19 +81,19 @@ jobs:
         run: |
           set -xeuo pipefail
           cd ~/cronet-go
-          go run ./cmd/build-naive --target=linux/arm64 download-toolchain
+          go run ./cmd/build-naive --target=linux/amd64 download-toolchain
       - name: Set Chromium toolchain environment
         run: |
           set -xeuo pipefail
           cd ~/cronet-go
-          go run ./cmd/build-naive --target=linux/arm64 env >> $GITHUB_ENV
+          go run ./cmd/build-naive --target=linux/amd64 env >> $GITHUB_ENV
 
       - name: Define build metadata
         id: meta
         run: |
           set -xeuo pipefail
           TAGS="with_gvisor with_quic with_grpc with_utls with_clash_api with_naive_outbound badlinkname"
-          OUT="sing-box-${VERSION}-linux-arm64"
+          OUT="sing-box-${VERSION}-linux-amd64"
 
           echo "TAGS=$TAGS" >> $GITHUB_ENV
           echo "OUT=$OUT" >> $GITHUB_ENV
@@ -101,11 +101,11 @@ jobs:
           echo "tags=$TAGS" >> $GITHUB_OUTPUT
           echo "out=$OUT" >> $GITHUB_OUTPUT
 
-      - name: Build sing-box (linux arm64)
+      - name: Build sing-box (linux amd64)
         env:
           CGO_ENABLED: 1
           GOOS: linux
-          GOARCH: arm64
+          GOARCH: amd64
         run: |
           set -xeuo pipefail
           go build \
@@ -126,6 +126,6 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: sing-box-linux-arm64-naive-purego-${{ steps.upstream.outputs.short }}
+          name: sing-box-linux-amd64-naive-${{ steps.upstream.outputs.short }}
           path: |
             ${{ steps.meta.outputs.out }}
