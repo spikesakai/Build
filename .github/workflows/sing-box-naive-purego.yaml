@@ -1,0 +1,131 @@
+name: Build sing-box naive purego core
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'sing-box source (tag/branch/commit)'
+        type: string
+        required: false
+        default: 'dev-next'
+      build_version:
+        description: 'Version string to embed (constant.Version) [required]'
+        type: string
+        required: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Prepare context
+        id: prep
+        run: |
+          UPSTREAM_REPO="https://github.com/SagerNet/sing-box.git"
+          REF="${{ github.event.inputs.version }}"
+          VERSION="${{ github.event.inputs.build_version }}"
+
+          echo "REF=$REF" >> $GITHUB_ENV
+          echo "UPSTREAM_REPO=$UPSTREAM_REPO" >> $GITHUB_ENV
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "ref=$REF" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "upstream=$UPSTREAM_REPO" >> $GITHUB_OUTPUT
+
+      - name: Resolve SHA (tag/branch/commit)
+        id: upstream
+        run: |
+          set -e
+          SHA=$(git ls-remote --heads "${UPSTREAM_REPO}" "refs/heads/${REF}" | cut -f1)
+          if [ -z "$SHA" ]; then
+            SHA=$(git ls-remote --tags "${UPSTREAM_REPO}" "${REF}^{}" | cut -f1)
+          fi
+          if [ -z "$SHA" ]; then
+            SHA=$(git ls-remote "${UPSTREAM_REPO}" "${REF}" | cut -f1)
+          fi
+          if [ -z "$SHA" ]; then
+            echo "ERROR: REF '${REF}' not found (branch/tag/commit)."
+            exit 1
+          fi
+          SHORT="${SHA:0:7}"
+          echo "UPSTREAM_SHA=$SHA" >> $GITHUB_ENV
+          echo "SHORT_SHA=$SHORT" >> $GITHUB_ENV
+          echo "sha=$SHA" >> $GITHUB_OUTPUT
+          echo "short=$SHORT" >> $GITHUB_OUTPUT
+
+      - name: Checkout upstream
+        uses: actions/checkout@v4
+        with:
+          repository: SagerNet/sing-box
+          ref: ${{ steps.upstream.outputs.sha }}
+          fetch-depth: 1
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.5'
+
+      - name: Clone cronet-go
+        run: |
+          set -xeuo pipefail
+          CRONET_GO_VERSION=$(cat .github/CRONET_GO_VERSION)
+          git init ~/cronet-go
+          git -C ~/cronet-go remote add origin https://github.com/sagernet/cronet-go.git
+          git -C ~/cronet-go fetch --depth=1 origin "$CRONET_GO_VERSION"
+          git -C ~/cronet-go checkout FETCH_HEAD
+          git -C ~/cronet-go submodule update --init --recursive --depth=1
+
+      - name: Download Chromium toolchain
+        run: |
+          set -xeuo pipefail
+          cd ~/cronet-go
+          go run ./cmd/build-naive --target=linux/arm64 download-toolchain
+      - name: Set Chromium toolchain environment
+        run: |
+          set -xeuo pipefail
+          cd ~/cronet-go
+          go run ./cmd/build-naive --target=linux/arm64 env >> $GITHUB_ENV
+
+      - name: Define build metadata
+        id: meta
+        run: |
+          set -xeuo pipefail
+          TAGS="with_gvisor with_quic with_grpc with_utls with_clash_api with_purego with_naive_outbound badlinkname"
+          OUT="sing-box-${VERSION}-linux-arm64"
+
+          echo "TAGS=$TAGS" >> $GITHUB_ENV
+          echo "OUT=$OUT" >> $GITHUB_ENV
+
+          echo "tags=$TAGS" >> $GITHUB_OUTPUT
+          echo "out=$OUT" >> $GITHUB_OUTPUT
+
+      - name: Build sing-box (linux arm64)
+        env:
+          CGO_ENABLED: 0
+          GOOS: linux
+          GOARCH: arm64
+        run: |
+          set -xeuo pipefail
+          go build \
+            -trimpath \
+            -o "${OUT}" \
+            -ldflags="-X 'github.com/sagernet/sing-box/constant.Version=${VERSION}' -s -w -buildid= -checklinkname=0" \
+            -tags="${TAGS}" \
+            ./cmd/sing-box
+
+      - name: Verify arch
+        run: file "${OUT}"
+
+      - name: Prepare executable file
+        run: |
+          # 确保最终文件权限正确
+          chmod +x "${OUT}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sing-box-linux-arm64-naive-purego-${{ steps.upstream.outputs.short }}
+          path: |
+            ${{ steps.meta.outputs.out }}
