@@ -92,7 +92,7 @@ jobs:
         id: meta
         run: |
           set -xeuo pipefail
-          TAGS="with_gvisor with_quic with_dhcp with_grpc with_utls with_clash_api with_musl with_naive_outbound badlinkname"
+          TAGS="with_gvisor with_quic with_grpc with_utls with_clash_api with_musl with_naive_outbound badlinkname"
           OUT="sing-box-${VERSION}-linux-arm64"
 
           echo "TAGS=$TAGS" >> $GITHUB_ENV
