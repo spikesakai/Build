@@ -77,13 +77,6 @@ jobs:
           git -C ~/cronet-go checkout FETCH_HEAD
           git -C ~/cronet-go submodule update --init --recursive --depth=1
 
-      - name: Download Clone cronet-go
-        run: |
-          set -xeuo pipefail
-          wget -O libcronet.so https://github.com/SagerNet/cronet-go/releases/download/v0.0.1-140.0.7339.123-2/libcronet-linux-arm64.so && \
-          sudo cp libcronet.so /usr/local/lib/ && \
-          sudo ldconfig
-
       - name: Download Chromium toolchain
         run: |
           set -xeuo pipefail
