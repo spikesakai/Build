@@ -111,6 +111,7 @@ jobs:
           go build \
             -trimpath \
             -o "${OUT}" \
+            myapp_openwrt \
             -ldflags="-X 'github.com/sagernet/sing-box/constant.Version=${VERSION}' -s -w -buildid= -checklinkname=0" \
             -tags="${TAGS}" \
             ./cmd/sing-box
