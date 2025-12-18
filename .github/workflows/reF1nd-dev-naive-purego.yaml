@@ -115,6 +115,11 @@ jobs:
             -tags="${TAGS}" \
             ./cmd/sing-box
 
+      - name: Extract libcronet.so
+        run: |
+          cd ~/cronet-go
+          CGO_ENABLED=0 go run -v ./cmd/build-naive extract-lib --target linux/arm64 -o $GITHUB_WORKSPACE/dist
+
       - name: Verify arch
         run: file "${OUT}"
 
