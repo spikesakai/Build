@@ -1,4 +1,4 @@
-name: Build reF1nd-dev sing-box core
+name: Build reF1nd-dev sing-box core auto
 
 on:
   workflow_dispatch:
