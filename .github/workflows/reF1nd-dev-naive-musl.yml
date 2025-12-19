@@ -1,4 +1,4 @@
-name: Build reF1nd-dev sing-box naive musl core auto
+name: Build reF1nd-dev sing-box naive musl core
 
 on:
   workflow_dispatch:
