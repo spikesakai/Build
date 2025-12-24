@@ -7,7 +7,7 @@ on:
         description: 'Source ref to build (tag/branch/commit)'
         type: string
         required: true
-        default: 'reF1nd-dev-next'
+        default: 'reF1nd-dev'
 
 jobs:
   build:
