@@ -1,0 +1,115 @@
+name: Build reF1nd-dev-next sing-box core
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: 'Source ref to build (tag/branch/commit)'
+        type: string
+        required: true
+        default: 'reF1nd-dev-next'
+      custom_version:
+        description: 'Manual Version (e.g. 1.8.0)'
+        type: string
+        required: true
+        default: '1.13.0-alpha.33'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Prepare context
+        id: prep
+        run: |
+          UPSTREAM_REPO="https://github.com/reF1nd/sing-box.git"
+          REF="${{ github.event.inputs.source_ref }}"
+          # 2. 从输入中获取版本号
+          VERSION="${{ github.event.inputs.custom_version }}"
+          
+          echo "REF=$REF" >> $GITHUB_ENV
+          echo "UPSTREAM_REPO=$UPSTREAM_REPO" >> $GITHUB_ENV
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          
+          echo "ref=$REF" >> $GITHUB_OUTPUT
+          echo "upstream=$UPSTREAM_REPO" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Resolve SHA (tag/branch/commit)
+        id: upstream
+        run: |
+          set -e
+          SHA=$(git ls-remote --heads "${UPSTREAM_REPO}" "refs/heads/${REF}" | cut -f1)
+          if [ -z "$SHA" ]; then
+            SHA=$(git ls-remote --tags "${UPSTREAM_REPO}" "refs/tags/${REF}" | cut -f1)
+          fi
+          if [ -z "$SHA" ]; then
+            SHA=$(git ls-remote --tags "${UPSTREAM_REPO}" "refs/tags/${REF}^{}" | cut -f1)
+          fi
+          if [ -z "$SHA" ]; then
+            SHA=$(git ls-remote "${UPSTREAM_REPO}" "${REF}" | cut -f1)
+          fi
+          if [ -z "$SHA" ]; then
+            echo "ERROR: REF '${REF}' not found (branch/tag/commit)."
+            exit 1
+          fi
+          SHORT="${SHA:0:7}"
+          echo "UPSTREAM_SHA=$SHA" >> $GITHUB_ENV
+          echo "SHORT_SHA=$SHORT" >> $GITHUB_ENV
+          echo "sha=$SHA" >> $GITHUB_OUTPUT
+          echo "short=$SHORT" >> $GITHUB_OUTPUT
+
+      - name: Checkout upstream with full history
+        uses: actions/checkout@v4
+        with:
+          repository: reF1nd/sing-box
+          ref: ${{ steps.upstream.outputs.sha }}
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.5'
+
+      - name: Define build metadata
+        id: meta
+        run: |
+          set -xeuo pipefail
+          TAGS="with_gvisor with_quic with_grpc with_utls with_clash_api badlinkname"
+          # 使用上面定义的 VERSION 变量
+          OUT="sing-box-${VERSION}-linux-arm64"
+
+          echo "TAGS=$TAGS" >> $GITHUB_ENV
+          echo "OUT=$OUT" >> $GITHUB_ENV
+
+          echo "tags=$TAGS" >> $GITHUB_OUTPUT
+          echo "out=$OUT" >> $GITHUB_OUTPUT
+
+      - name: Build sing-box (linux arm64)
+        env:
+          CGO_ENABLED: 0
+          GOOS: linux
+          GOARCH: arm64
+        run: |
+          set -xeuo pipefail
+          go build \
+            -trimpath \
+            -o "${OUT}" \
+            -ldflags="-X 'github.com/sagernet/sing-box/constant.Version=${VERSION}' -s -w -buildid= -checklinkname=0" \
+            -tags="${TAGS}" \
+            ./cmd/sing-box
+
+      - name: Verify arch
+        run: file "${OUT}"
+
+      - name: Prepare executable file
+        run: |
+          chmod +x "${OUT}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sing-box-linux-arm64-${{ steps.upstream.outputs.short }}
+          path: |
+            ${{ steps.meta.outputs.out }}
