@@ -12,7 +12,7 @@ on:
         description: 'Manual Version (e.g. 1.12.13)'
         type: string
         required: true
-        default: '1.13.0-alpha.33'
+        default: '1.13.0-beta.1'
 
 jobs:
   build:
@@ -111,6 +111,7 @@ jobs:
           name: sing-box-next-linux-arm64-${{ steps.upstream.outputs.short }}
           path: |
             ${{ steps.meta.outputs.out }}
+
 
 
 
