@@ -69,7 +69,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25.7'
+          go-version: '1.26.0'
 
       - name: Clone cronet-go
         run: |
@@ -143,6 +143,7 @@ jobs:
           path: |
 
             ${{ steps.meta.outputs.out }}
+
 
 
 
