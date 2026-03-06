@@ -1,4 +1,4 @@
-name: Build reF1nd-dev-next sing-box naive musl core
+name: Build reF1nd-testing sing-box naive musl core
 
 on:
   workflow_dispatch:
@@ -7,7 +7,7 @@ on:
         description: 'Source ref to build (tag/branch/commit)'
         type: string
         required: true
-        default: 'reF1nd-dev-next'
+        default: 'reF1nd-testing'
       custom_version:
         description: 'Manual Version (e.g. 1.12.13)'
         type: string
@@ -143,6 +143,7 @@ jobs:
           path: |
 
             ${{ steps.meta.outputs.out }}
+
 
 
 
