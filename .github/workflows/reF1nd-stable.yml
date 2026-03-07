@@ -1,4 +1,4 @@
-name: Build reF1nd-stable sing-box core
+name: Build reF1nd-stable-next sing-box core
 
 on:
   workflow_dispatch:
@@ -7,7 +7,7 @@ on:
         description: 'Source ref to build (tag/branch/commit)'
         type: string
         required: true
-        default: 'reF1nd-stable'
+        default: 'reF1nd-stable-next'
 
 jobs:
   build:
