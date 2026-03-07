@@ -9,10 +9,10 @@ on:
         required: true
         default: 'reF1nd-testing'
       custom_version:
-        description: 'Manual Version (e.g. 1.12.13)'
+        description: 'Manual Version (e.g. 1.14.0-alpha.1)'
         type: string
         required: true
-        default: '1.13.0'
+        default: '1.14.0-alpha.1'
 
 jobs:
   build:
@@ -143,6 +143,7 @@ jobs:
           path: |
 
             ${{ steps.meta.outputs.out }}
+
 
 
 
