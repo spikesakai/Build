@@ -13,6 +13,8 @@ on:
         type: string
         required: true
         default: '1.14.0-alpha.1'
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 jobs:
   build:
