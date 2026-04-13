@@ -54,7 +54,7 @@ jobs:
           echo "short=$SHORT" >> $GITHUB_OUTPUT
 
       - name: Checkout upstream with full history
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           repository: reF1nd/sing-box
           ref: ${{ steps.upstream.outputs.sha }}
@@ -115,7 +115,7 @@ jobs:
           chmod +x "${OUT}"
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: sing-box-linux-arm64-${{ steps.upstream.outputs.short }}
           path: |
