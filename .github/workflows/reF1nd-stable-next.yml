@@ -8,6 +8,8 @@ on:
         type: string
         required: true
         default: 'reF1nd-stable-next'
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 jobs:
   build:
