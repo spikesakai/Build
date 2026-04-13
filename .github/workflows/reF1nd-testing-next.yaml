@@ -64,7 +64,7 @@ jobs:
           echo "short=$SHORT" >> $GITHUB_OUTPUT
 
       - name: Checkout upstream with full history
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: reF1nd/sing-box
           ref: ${{ steps.upstream.outputs.sha }}
