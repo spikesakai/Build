@@ -64,7 +64,7 @@ jobs:
           echo "short=$SHORT" >> $GITHUB_OUTPUT
 
       - name: Checkout upstream with full history
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           repository: reF1nd/sing-box
           ref: ${{ steps.upstream.outputs.sha }}
@@ -87,7 +87,7 @@ jobs:
 
       - name: Cache Chromium toolchain
         id: cache-chromium-toolchain
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/cronet-go/naiveproxy/src/third_party/llvm-build/Release+Asserts
