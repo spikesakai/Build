@@ -12,7 +12,7 @@ on:
         description: 'Manual Version (e.g. 1.14.0-alpha.1)'
         type: string
         required: true
-        default: '1.14.0-alpha.1'
+        default: '1.14.0-alpha.25'
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
@@ -73,7 +73,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.26.2'
+          go-version: '1.26.3'
 
       - name: Define build metadata
         id: meta
