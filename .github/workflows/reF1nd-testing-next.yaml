@@ -12,7 +12,7 @@ on:
         description: 'Manual Version (e.g. 1.14.0-alpha.1)'
         type: string
         required: true
-        default: '1.14.0-alpha.25'
+        default: '1.14.0-alpha.50'
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
