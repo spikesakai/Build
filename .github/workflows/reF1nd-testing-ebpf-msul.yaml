@@ -83,6 +83,8 @@ jobs:
           git -C ~/cronet-go remote add origin https://github.com/sagernet/cronet-go.git
           git -C ~/cronet-go fetch --depth=1 origin "$CRONET_GO_VERSION"
           git -C ~/cronet-go checkout FETCH_HEAD
+          git -C ~/cronet-go submodule init
+          git -C ~/cronet-go submodule update --depth=1 --recommend-shallow
 
       - name: Cache Chromium toolchain
         id: cache-chromium-toolchain
@@ -144,4 +146,5 @@ jobs:
         with:
           name: sing-box-next-linux-arm64-ebpf-musl-${{ steps.upstream.outputs.short }}
           path: |
+
             ${{ steps.meta.outputs.out }}
