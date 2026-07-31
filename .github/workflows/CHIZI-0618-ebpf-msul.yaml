@@ -9,10 +9,10 @@ on:
         required: true
         default: 'testing-ref1nd'
       custom_version:
-        description: 'Manual Version (e.g. 1.14.0-beta.3)'
+        description: 'Manual Version (e.g. 1.14.0-beta.4)'
         type: string
         required: true
-        default: '1.14.0-beta.3'
+        default: '1.14.0-beta.4'
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
@@ -119,6 +119,16 @@ jobs:
 
           echo "tags=$TAGS" >> $GITHUB_OUTPUT
           echo "out=$OUT" >> $GITHUB_OUTPUT
+
+      - name: Install eBPF Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y linux-headers-generic libbpf-dev make
+
+      - name: Generate eBPF Object
+        run: |
+          set -xeuo pipefail
+          make -C common/ebpf generate CLANG="${CC}"
 
       - name: Build sing-box (linux arm64)
         env:
