@@ -1,4 +1,4 @@
-name: Build reF1nd-testing sing-box ebpf musl core
+name: Build CHIZI-0618 sing-box ebpf musl core
 
 on:
   workflow_dispatch:
