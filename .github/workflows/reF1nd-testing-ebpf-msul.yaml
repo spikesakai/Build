@@ -123,12 +123,12 @@ jobs:
       - name: Install eBPF Build Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y linux-headers-generic libbpf-dev make
+          sudo apt-get install -y clang llvm linux-headers-generic libbpf-dev make
 
       - name: Generate eBPF Object
         run: |
           set -xeuo pipefail
-          make -C common/ebpf generate CLANG="${CC}"
+          make -C common/ebpf
 
       - name: Build sing-box (linux arm64)
         env:
