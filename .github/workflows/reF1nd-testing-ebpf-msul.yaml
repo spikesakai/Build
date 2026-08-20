@@ -75,21 +75,29 @@ jobs:
         with:
           go-version: '1.26.6'
 
-      - name: Install eBPF Build Toolchain (Clang 21)
+      - name: Install NDK r29 (Clang 21) for eBPF
         run: |
           set -xeuo pipefail
-          sudo apt-get update
-          sudo apt-get install -y wget lsb-release software-properties-common gnupg make
-          wget https://apt.llvm.org/llvm.sh
-          chmod +x llvm.sh
-          sudo ./llvm.sh 21
-          echo "CLANG=clang-21" >> $GITHUB_ENV
-          echo "STRIP=llvm-strip-21" >> $GITHUB_ENV
+          # 下载 NDK r29 Canary (这是 reF1nd 指定的版本)
+          # 注意：URL 随 Google 更新可能变动，如果失效请检查 reF1nd 的 CI 脚本
+          wget -q https://dl.google.com/android/repository/android-ndk-r29-canary-linux.zip -O ndk.zip
+          unzip -q ndk.zip
+          NDK_DIR=$(ls -d android-ndk-r*)
+          
+          # 定位 Clang 21 的二进制路径
+          CLANG_BIN_DIR="$GITHUB_WORKSPACE/$NDK_DIR/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          
+          # 将其加入系统路径并设置环境变量供 Makefile 调用
+          echo "$CLANG_BIN_DIR" >> $GITHUB_PATH
+          echo "CLANG=$CLANG_BIN_DIR/clang" >> $GITHUB_ENV
+          echo "STRIP=$CLANG_BIN_DIR/llvm-strip" >> $GITHUB_ENV
 
       - name: Generate eBPF Object
         run: |
           set -xeuo pipefail
-          make -C common/ebpf CLANG=clang-21 STRIP=llvm-strip-21
+          # 确保环境变量生效，执行 make
+          # 显式传递变量以确保 Makefile 检查通过
+          make -C common/ebpf CLANG=$CLANG STRIP=$STRIP
 
       - name: Define build metadata
         id: meta
