@@ -1,4 +1,4 @@
-name: Build reF1nd-testing-next sing-box ebpf core
+name: Build reF1nd-testing sing-box ebpf core
 
 on:
   workflow_dispatch:
@@ -13,61 +13,21 @@ on:
         type: string
         required: true
         default: '1.14.0-beta.17'
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
     permissions:
       contents: write
     steps:
-      - name: Prepare context
-        id: prep
-        run: |
-          UPSTREAM_REPO="https://github.com/reF1nd/sing-box.git"
-          REF="${{ github.event.inputs.source_ref }}"
-          VERSION="${{ github.event.inputs.custom_version }}"
-
-          echo "REF=$REF" >> $GITHUB_ENV
-          echo "UPSTREAM_REPO=$UPSTREAM_REPO" >> $GITHUB_ENV
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-
-          echo "ref=$REF" >> $GITHUB_OUTPUT
-          echo "upstream=$UPSTREAM_REPO" >> $GITHUB_OUTPUT
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Resolve SHA (tag/branch/commit)
-        id: upstream
-        run: |
-          set -e
-          SHA=$(git ls-remote --heads "${UPSTREAM_REPO}" "refs/heads/${REF}" | cut -f1)
-          if [ -z "$SHA" ]; then
-            SHA=$(git ls-remote --tags "${UPSTREAM_REPO}" "refs/tags/${REF}" | cut -f1)
-          fi
-          if [ -z "$SHA" ]; then
-            SHA=$(git ls-remote --tags "${UPSTREAM_REPO}" "refs/tags/${REF}^{}" | cut -f1)
-          fi
-          if [ -z "$SHA" ]; then
-            SHA=$(git ls-remote "${UPSTREAM_REPO}" "${REF}" | cut -f1)
-          fi
-          if [ -z "$SHA" ]; then
-            echo "ERROR: REF '${REF}' not found (branch/tag/commit)."
-            exit 1
-          fi
-          SHORT="${SHA:0:7}"
-          echo "UPSTREAM_SHA=$SHA" >> $GITHUB_ENV
-          echo "SHORT_SHA=$SHORT" >> $GITHUB_ENV
-          echo "sha=$SHA" >> $GITHUB_OUTPUT
-          echo "short=$SHORT" >> $GITHUB_OUTPUT
-
-      - name: Checkout upstream with full history
+      - name: Checkout upstream
         uses: actions/checkout@v6
         with:
           repository: reF1nd/sing-box
-          ref: ${{ steps.upstream.outputs.sha }}
+          ref: ${{ github.event.inputs.source_ref }}
           fetch-depth: 0
 
       - name: Setup Go
@@ -75,42 +35,32 @@ jobs:
         with:
           go-version: '1.26.6'
 
-      - name: Install NDK r29 (Clang 21) for eBPF
+      - name: Install NDK r29 (Clang 21)
         run: |
           set -xeuo pipefail
-          # 下载 NDK r29 Canary (这是 reF1nd 指定的版本)
-          # 注意：URL 随 Google 更新可能变动，如果失效请检查 reF1nd 的 CI 脚本
-          wget -q https://dl.google.com/android/repository/android-ndk-r29-canary-linux.zip -O ndk.zip
+          curl -Lo ndk.zip https://dl.google.com/android/repository/android-ndk-r29-canary-linux.zip || \
+          curl -Lo ndk.zip https://dl.google.com/android/repository/android-ndk-r28-linux.zip
           unzip -q ndk.zip
-          NDK_DIR=$(ls -d android-ndk-r*)
-          
-          # 定位 Clang 21 的二进制路径
-          CLANG_BIN_DIR="$GITHUB_WORKSPACE/$NDK_DIR/toolchains/llvm/prebuilt/linux-x86_64/bin"
-          
-          # 将其加入系统路径并设置环境变量供 Makefile 调用
-          echo "$CLANG_BIN_DIR" >> $GITHUB_PATH
-          echo "CLANG=$CLANG_BIN_DIR/clang" >> $GITHUB_ENV
-          echo "STRIP=$CLANG_BIN_DIR/llvm-strip" >> $GITHUB_ENV
+          NDK_PATH=$(ls -d android-ndk-r*)
+          TOOLCHAIN_BIN="$GITHUB_WORKSPACE/$NDK_PATH/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          $TOOLCHAIN_BIN/clang --version
+          echo "CLANG_PATH=$TOOLCHAIN_BIN" >> $GITHUB_ENV
 
       - name: Generate eBPF Object
         run: |
           set -xeuo pipefail
-          # 确保环境变量生效，执行 make
-          # 显式传递变量以确保 Makefile 检查通过
-          make -C common/ebpf CLANG=$CLANG STRIP=$STRIP
+          export PATH="${{ env.CLANG_PATH }}:$PATH"
+          make -C common/ebpf CLANG=clang STRIP=llvm-strip
 
       - name: Define build metadata
         id: meta
         run: |
           set -xeuo pipefail
+          # 加入 with_ebpf 标签
           TAGS="with_gvisor with_quic with_grpc with_utls with_clash_api with_ebpf badlinkname"
-          OUT="sing-box-${VERSION}-linux-arm64"
-
+          OUT="sing-box-${{ github.event.inputs.custom_version }}-linux-arm64"
           echo "TAGS=$TAGS" >> $GITHUB_ENV
           echo "OUT=$OUT" >> $GITHUB_ENV
-
-          echo "tags=$TAGS" >> $GITHUB_OUTPUT
-          echo "out=$OUT" >> $GITHUB_OUTPUT
 
       - name: Build sing-box (linux arm64)
         env:
@@ -122,20 +72,17 @@ jobs:
           go build \
             -trimpath \
             -o "${OUT}" \
-            -ldflags="-X 'github.com/sagernet/sing-box/constant.Version=${VERSION}' -s -w -buildid= -checklinkname=0" \
+            -ldflags="-X 'github.com/sagernet/sing-box/constant.Version=${{ github.event.inputs.custom_version }}' -s -w -buildid= -checklinkname=0" \
             -tags="${TAGS}" \
             ./cmd/sing-box
 
-      - name: Verify arch and static linking
-        run: file "${OUT}"
-
-      - name: Prepare executable file
+      - name: Verify build
         run: |
-          chmod +x "${OUT}"
+          file "${{ env.OUT }}"
+          ./"${{ env.OUT }}" version || true
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: sing-box-next-linux-arm64-${{ steps.upstream.outputs.short }}
-          path: |
-            ${{ steps.meta.outputs.out }}
+          name: sing-box-ebpf-arm64
+          path: ${{ env.OUT }}
