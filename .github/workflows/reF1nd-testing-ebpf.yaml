@@ -35,16 +35,19 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y clang llvm
 
-      - name: Build for OpenWrt ARM64
+      - name: Generate eBPF Objects
         env:
-          GOOS: linux
-          GOARCH: arm64
-          CGO_ENABLED: 0
-          TAGS: with_gvisor,with_quic,with_dhcp,with_utls,with_clash_api,with_ebpf,badlinkname,tfogo_checklinkname0
-          LDFLAGS: "-X 'github.com/sagernet/sing-box/constant.Version=${{ github.event.inputs.custom_version }}' -s -w -buildid="
+          GOFLAGS: "-tags=with_ebpf" 
         run: |
+          clang --version
           go generate ./...
-          go build -v -trimpath -tags "$TAGS" -ldflags "$LDFLAGS" -o sing-box ./cmd/sing-box
+
+      - name: Build Binary
+        run: |
+          go build -v -trimpath \
+            -tags "with_gvisor,with_quic,with_dhcp,with_utls,with_clash_api,with_ebpf,badlinkname,tfogo_checklinkname0" \
+            -ldflags "-s -w -X 'github.com/sagernet/sing-box/constant.Version=${{ github.event.inputs.custom_version }}'" \
+            -o sing-box ./cmd/sing-box
 
       - name: Verify and Pack
         run: |
