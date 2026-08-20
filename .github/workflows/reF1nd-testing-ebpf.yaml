@@ -1,4 +1,4 @@
-name: Build reF1nd-testing sing-box ebpf musl core
+name: Build reF1nd sing-box for OpenWrt (Linux ARM64 with eBPF)
 
 on:
   workflow_dispatch:
@@ -9,65 +9,65 @@ on:
         required: true
         default: 'reF1nd-testing-next'
       custom_version:
-        description: 'Manual Version (e.g. 1.14.0-beta.17)'
+        description: 'Manual Version'
         type: string
         required: true
         default: '1.14.0-beta.17'
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
-    permissions:
-      contents: write
+  verifier:
+    runs-on: ubuntu-24.04
     steps:
-      - name: Prepare context
-        id: prep
-        run: |
-          UPSTREAM_REPO="https://github.com/reF1nd/sing-box.git"
-          REF="${{ github.event.inputs.source_ref }}"
-          VERSION="${{ github.event.inputs.custom_version }}"
-
-          echo "REF=$REF" >> $GITHUB_ENV
-          echo "UPSTREAM_REPO=$UPSTREAM_REPO" >> $GITHUB_ENV
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-
-          echo "ref=$REF" >> $GITHUB_OUTPUT
-          echo "upstream=$UPSTREAM_REPO" >> $GITHUB_OUTPUT
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Resolve SHA (tag/branch/commit)
-        id: upstream
-        run: |
-          set -e
-          SHA=$(git ls-remote --heads "${UPSTREAM_REPO}" "refs/heads/${REF}" | cut -f1)
-          if [ -z "$SHA" ]; then
-            SHA=$(git ls-remote --tags "${UPSTREAM_REPO}" "refs/tags/${REF}" | cut -f1)
-          fi
-          if [ -z "$SHA" ]; then
-            SHA=$(git ls-remote --tags "${UPSTREAM_REPO}" "refs/tags/${REF}^{}" | cut -f1)
-          fi
-          if [ -z "$SHA" ]; then
-            SHA=$(git ls-remote "${UPSTREAM_REPO}" "${REF}" | cut -f1)
-          fi
-          if [ -z "$SHA" ]; then
-            echo "ERROR: REF '${REF}' not found (branch/tag/commit)."
-            exit 1
-          fi
-          SHORT="${SHA:0:7}"
-          echo "UPSTREAM_SHA=$SHA" >> $GITHUB_ENV
-          echo "SHORT_SHA=$SHORT" >> $GITHUB_ENV
-          echo "sha=$SHA" >> $GITHUB_OUTPUT
-          echo "short=$SHORT" >> $GITHUB_OUTPUT
-
-      - name: Checkout upstream with full history
+      - name: Checkout
         uses: actions/checkout@v6
         with:
           repository: reF1nd/sing-box
-          ref: ${{ steps.upstream.outputs.sha }}
+          ref: ${{ github.event.inputs.source_ref }}
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.26.6'
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang llvm gcc-aarch64-linux-gnu
+
+      - name: Verify eBPF Program
+        shell: bash
+        run: |
+          set -euo pipefail
+          make -C common/ebpf check
+
+          cgroup_path=/sys/fs/cgroup/sing-box-ebpf-verifier
+          sudo mkdir -p "$cgroup_path"
+          sudo env \
+            "PATH=$PATH" \
+            SING_BOX_EBPF_INTEGRATION=1 \
+            SING_BOX_EBPF_INTEGRATION_CGROUP="$cgroup_path" \
+            go test -v -count=1 \
+              -run 'Test(CgroupBackendProgramLoad|SharedNetwork(SharedMap|Standalone)ProgramLoad)Integration' \
+              -tags with_ebpf,ebpf_integration \
+              ./common/ebpf 2>&1 | tee verifier.log
+          sudo rmdir "$cgroup_path"
+
+      - name: Upload verifier log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ebpf-verifier-log
+          path: verifier.log
+
+  build:
+    needs: verifier
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          repository: reF1nd/sing-box
+          ref: ${{ github.event.inputs.source_ref }}
           fetch-depth: 0
 
       - name: Setup Go
@@ -75,54 +75,31 @@ jobs:
         with:
           go-version: '1.26.6'
 
-      - name: Define build metadata
-        id: meta
-        run: |
-          set -xeuo pipefail
-          TAGS="with_gvisor with_quic with_grpc with_utls with_clash_api with_ebpf badlinkname"
-          OUT="sing-box-${VERSION}-linux-arm64"
-
-          echo "TAGS=$TAGS" >> $GITHUB_ENV
-          echo "OUT=$OUT" >> $GITHUB_ENV
-
-          echo "tags=$TAGS" >> $GITHUB_OUTPUT
-          echo "out=$OUT" >> $GITHUB_OUTPUT
-
-      - name: Install eBPF Build Dependencies
+      - name: Install Cross-Compiler
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang llvm linux-headers-generic libbpf-dev make
+          sudo apt-get install -y gcc-aarch64-linux-gnu clang llvm
 
-      - name: Generate eBPF Object
-        run: |
-          set -xeuo pipefail
-          make -C common/ebpf
-
-      - name: Build sing-box (linux arm64)
+      - name: Build for Linux ARM64
         env:
-          CGO_ENABLED: 0
           GOOS: linux
           GOARCH: arm64
+          CGO_ENABLED: 0
+          CC: aarch64-linux-gnu-gcc
+          TAGS: with_gvisor,with_quic,with_dhcp,with_utls,with_clash_api,with_ebpf,badlinkname,tfogo_checklinkname0
+          LDFLAGS: "-X 'github.com/sagernet/sing-box/constant.Version=${{ github.event.inputs.custom_version }}' -s -w -buildid= -checklinkname=0"
         run: |
-          set -xeuo pipefail
-          go build \
-            -trimpath \
-            -o "${OUT}" \
-            -ldflags="-X 'github.com/sagernet/sing-box/constant.Version=${VERSION}' -s -w -buildid= -checklinkname=0" \
-            -tags="${TAGS}" \
-            ./cmd/sing-box
+          make build TAGS="$TAGS" LDFLAGS="$LDFLAGS"
 
-      - name: Verify arch
-        run: file "${OUT}"
-
-      - name: Prepare executable file
+      - name: Rename executable
         run: |
-          chmod +x "${OUT}"
+          mv sing-box sing-box-${{ github.event.inputs.custom_version }}-linux-arm64
+
+      - name: Verify binary architecture
+        run: file sing-box-*
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: sing-box-next-linux-arm64-ebpf-musl-${{ steps.upstream.outputs.short }}
-          path: |
-
-            ${{ steps.meta.outputs.out }}
+          name: sing-box-linux-arm64-ebpf
+          path: sing-box-*
