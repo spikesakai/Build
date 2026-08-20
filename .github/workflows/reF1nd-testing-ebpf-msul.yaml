@@ -1,4 +1,4 @@
-name: Build reF1nd-testing sing-box ebpf musl core
+name: Build reF1nd-testing-next sing-box core
 
 on:
   workflow_dispatch:
@@ -75,15 +75,25 @@ jobs:
         with:
           go-version: '1.26.6'
 
-      - name: Install eBPF Build Dependencies
+      - name: Install NDK r29 (Clang 21) for eBPF
         run: |
-          sudo apt-get update
-          sudo apt-get install -y clang llvm make
+          set -xeuo pipefail
+          wget -q https://dl.google.com/android/repository/android-ndk-r29-canary-linux.zip -O ndk.zip
+          unzip -q ndk.zip
+          NDK_DIR=$(ls -d android-ndk-r*)
+
+          CLANG_BIN_DIR="$GITHUB_WORKSPACE/$NDK_DIR/toolchains/llvm/prebuilt/linux-x86_64/bin"
+
+          echo "$CLANG_BIN_DIR" >> $GITHUB_PATH
+          echo "CLANG=$CLANG_BIN_DIR/clang" >> $GITHUB_ENV
+          echo "STRIP=$CLANG_BIN_DIR/llvm-strip" >> $GITHUB_ENV
 
       - name: Generate eBPF Object
         run: |
           set -xeuo pipefail
-          make -C common/ebpf
+          # 确保环境变量生效，执行 make
+          # 显式传递变量以确保 Makefile 检查通过
+          make -C common/ebpf CLANG=$CLANG STRIP=$STRIP
 
       - name: Define build metadata
         id: meta
@@ -112,7 +122,7 @@ jobs:
             -tags="${TAGS}" \
             ./cmd/sing-box
 
-      - name: Verify arch
+      - name: Verify arch and static linking
         run: file "${OUT}"
 
       - name: Prepare executable file
@@ -122,7 +132,6 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: sing-box-next-linux-arm64-ebpf-musl-${{ steps.upstream.outputs.short }}
+          name: sing-box-next-linux-arm64-${{ steps.upstream.outputs.short }}
           path: |
-
             ${{ steps.meta.outputs.out }}
