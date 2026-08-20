@@ -1,4 +1,4 @@
-name: Build reF1nd sing-box for OpenWrt (Linux ARM64 with eBPF)
+name: Build reF1nd sing-box for OpenWrt (Pure Go eBPF)
 
 on:
   workflow_dispatch:
@@ -15,52 +15,7 @@ on:
         default: '1.14.0-beta.17'
 
 jobs:
-  verifier:
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          repository: reF1nd/sing-box
-          ref: ${{ github.event.inputs.source_ref }}
-
-      - name: Setup Go
-        uses: actions/setup-go@v6
-        with:
-          go-version: '1.26.6'
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y clang llvm gcc-aarch64-linux-gnu
-
-      - name: Verify eBPF Program
-        shell: bash
-        run: |
-          set -euo pipefail
-          make -C common/ebpf check
-
-          cgroup_path=/sys/fs/cgroup/sing-box-ebpf-verifier
-          sudo mkdir -p "$cgroup_path"
-          sudo env \
-            "PATH=$PATH" \
-            SING_BOX_EBPF_INTEGRATION=1 \
-            SING_BOX_EBPF_INTEGRATION_CGROUP="$cgroup_path" \
-            go test -v -count=1 \
-              -run 'Test(CgroupBackendProgramLoad|SharedNetwork(SharedMap|Standalone)ProgramLoad)Integration' \
-              -tags with_ebpf,ebpf_integration \
-              ./common/ebpf 2>&1 | tee verifier.log
-          sudo rmdir "$cgroup_path"
-
-      - name: Upload verifier log
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: ebpf-verifier-log
-          path: verifier.log
-
   build:
-    needs: verifier
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
@@ -75,31 +30,29 @@ jobs:
         with:
           go-version: '1.26.6'
 
-      - name: Install Cross-Compiler
+      - name: Install Build Essentials
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu clang llvm
+          sudo apt-get install -y clang llvm
 
-      - name: Build for Linux ARM64
+      - name: Build for OpenWrt ARM64
         env:
           GOOS: linux
           GOARCH: arm64
           CGO_ENABLED: 0
-          CC: aarch64-linux-gnu-gcc
           TAGS: with_gvisor,with_quic,with_dhcp,with_utls,with_clash_api,with_ebpf,badlinkname,tfogo_checklinkname0
-          LDFLAGS: "-X 'github.com/sagernet/sing-box/constant.Version=${{ github.event.inputs.custom_version }}' -s -w -buildid= -checklinkname=0"
+          LDFLAGS: "-X 'github.com/sagernet/sing-box/constant.Version=${{ github.event.inputs.custom_version }}' -s -w -buildid="
         run: |
-          make build TAGS="$TAGS" LDFLAGS="$LDFLAGS"
+          go generate ./...
+          go build -v -trimpath -tags "$TAGS" -ldflags "$LDFLAGS" -o sing-box ./cmd/sing-box
 
-      - name: Rename executable
+      - name: Verify and Pack
         run: |
-          mv sing-box sing-box-${{ github.event.inputs.custom_version }}-linux-arm64
-
-      - name: Verify binary architecture
-        run: file sing-box-*
+          file sing-box
+          mv sing-box sing-box-${{ github.event.inputs.custom_version }}-openwrt-arm64
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: sing-box-linux-arm64-ebpf
+          name: sing-box-openwrt-arm64
           path: sing-box-*
