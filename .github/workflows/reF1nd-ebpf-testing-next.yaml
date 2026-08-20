@@ -1,4 +1,4 @@
-name: Build reF1nd sing-box for OpenWrt (Linux ARM64 with eBPF)
+name: Build reF1nd sing-box eBPF core
 
 on:
   workflow_dispatch:
