@@ -75,27 +75,11 @@ jobs:
         with:
           go-version: '1.26.6'
 
-      - name: Install eBPF Build Toolchain (Clang 21)
-        run: |
-          set -xeuo pipefail
-          sudo apt-get update
-          sudo apt-get install -y wget lsb-release software-properties-common gnupg make
-          wget https://apt.llvm.org/llvm.sh
-          chmod +x llvm.sh
-          sudo ./llvm.sh 21
-          echo "CLANG=clang-21" >> $GITHUB_ENV
-          echo "STRIP=llvm-strip-21" >> $GITHUB_ENV
-
-      - name: Generate eBPF Object
-        run: |
-          set -xeuo pipefail
-          make -C common/ebpf CLANG=clang-21 STRIP=llvm-strip-21
-
       - name: Define build metadata
         id: meta
         run: |
           set -xeuo pipefail
-          TAGS="with_gvisor with_quic with_grpc with_utls with_clash_api with_ebpf badlinkname"
+          TAGS="with_gvisor with_quic with_grpc with_utls with_clash_api badlinkname"
           OUT="sing-box-${VERSION}-linux-arm64"
 
           echo "TAGS=$TAGS" >> $GITHUB_ENV
@@ -118,7 +102,7 @@ jobs:
             -tags="${TAGS}" \
             ./cmd/sing-box
 
-      - name: Verify arch and static linking
+      - name: Verify arch
         run: file "${OUT}"
 
       - name: Prepare executable file
