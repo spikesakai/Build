@@ -25,9 +25,9 @@ jobs:
           ref: ${{ github.event.inputs.source_ref }}
 
       - name: Setup Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@v6
         with:
-          go-version: '1.27.0'
+          go-version: '1.26.7'
 
       - name: Install dependencies
         run: |
@@ -71,9 +71,9 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@v6
         with:
-          go-version: '1.27.0'
+          go-version: '1.26.7'
 
       - name: Install Cross-Compiler
         run: |
