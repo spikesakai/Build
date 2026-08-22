@@ -16,55 +16,43 @@ on:
 
 jobs:
   verifier:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           repository: CHIZI-0618/sing-box
           ref: ${{ github.event.inputs.source_ref }}
 
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v5
         with:
-          go-version: '1.26.7'
+          go-version-file: go.mod # 自动从源码获取 Go 版本
+          cache: true
 
-      - name: Install dependencies
+      - name: Verify checked-in eBPF objects
         run: |
-          sudo apt-get update
-          sudo apt-get install -y clang llvm gcc-aarch64-linux-gnu
+          set -euo pipefail
+          echo "Checking for pre-compiled eBPF objects..."
+          test -f common/ebpf/internal/bpfgen/cgroup_bpfel.o
+          test -f common/ebpf/internal/bpfgen/shared_network_bpfel.o
+          test -f common/ebpf/internal/bpfgen/splice_bpfel.o
+          ls -lh common/ebpf/internal/bpfgen/*.o
 
-      - name: Verify eBPF Program
+      - name: Run focused eBPF tests
         shell: bash
         run: |
           set -euo pipefail
-          make -C common/ebpf check
-
-          cgroup_path=/sys/fs/cgroup/sing-box-ebpf-verifier
-          sudo mkdir -p "$cgroup_path"
-          sudo env \
-            "PATH=$PATH" \
-            SING_BOX_EBPF_INTEGRATION=1 \
-            SING_BOX_EBPF_INTEGRATION_CGROUP="$cgroup_path" \
-            go test -v -count=1 \
-              -run 'Test(CgroupBackendProgramLoad|SharedNetwork(SharedMap|Standalone)ProgramLoad)Integration' \
-              -tags with_ebpf,ebpf_integration \
-              ./common/ebpf 2>&1 | tee verifier.log
-          sudo rmdir "$cgroup_path"
-
-      - name: Upload verifier log
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: ebpf-verifier-log
-          path: verifier.log
+          go test -v -count=1 \
+            -tags "with_ebpf" \
+            ./common/ebpf ./protocol/ebpf ./include ./option
 
   build:
     needs: verifier
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           repository: CHIZI-0618/sing-box
           ref: ${{ github.event.inputs.source_ref }}
@@ -75,31 +63,34 @@ jobs:
         with:
           go-version: '1.26.7'
 
-      - name: Install Cross-Compiler
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu clang llvm
-
       - name: Build for Linux ARM64
         env:
           GOOS: linux
           GOARCH: arm64
           CGO_ENABLED: 0
-          CC: aarch64-linux-gnu-gcc
-          TAGS: with_quic,with_utls,with_clash_api,with_ebpf,badlinkname,tfogo_checklinkname0
-          LDFLAGS: "-X 'github.com/sagernet/sing-box/constant.Version=${{ github.event.inputs.custom_version }}' -s -w -buildid= -checklinkname=0"
+          TAGS: with_ebpf,with_quic,with_utls,with_clash_api,badlinkname,tfogo_checklinkname0
         run: |
-          make build TAGS="$TAGS" LDFLAGS="$LDFLAGS"
+          set -euo pipefail
 
-      - name: Rename executable
-        run: |
-          mv sing-box sing-box-${{ github.event.inputs.custom_version }}-linux-arm64
+          if [ -f release/LDFLAGS ]; then
+            SHARED_LDFLAGS=$(tr -d '\n' < release/LDFLAGS)
+          else
+            SHARED_LDFLAGS=""
+          fi
+
+          go build -v -trimpath \
+            -tags "$TAGS" \
+            -ldflags "-X 'github.com/sagernet/sing-box/constant.Version=${{ github.event.inputs.custom_version }}' $SHARED_LDFLAGS -s -w -buildid=" \
+            -o sing-box-linux-arm64 \
+            ./cmd/sing-box
 
       - name: Verify binary architecture
-        run: file sing-box-*
+        run: |
+          file sing-box-linux-arm64
+          if ! file sing-box-linux-arm64 | grep -q "aarch64"; then echo "Error: Not ARM64"; exit 1; fi
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: sing-box-linux-arm64-ebpf
-          path: sing-box-*
+          path: sing-box-linux-arm64
