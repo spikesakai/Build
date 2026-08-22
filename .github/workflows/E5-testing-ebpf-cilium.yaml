@@ -19,16 +19,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: CHIZI-0618/sing-box
           ref: ${{ github.event.inputs.source_ref }}
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
-          go-version-file: go.mod # 自动从源码获取 Go 版本
-          cache: true
+          go-version: '1.26.7'
 
       - name: Verify checked-in eBPF objects
         run: |
@@ -52,7 +51,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: CHIZI-0618/sing-box
           ref: ${{ github.event.inputs.source_ref }}
@@ -90,7 +89,7 @@ jobs:
           if ! file sing-box-linux-arm64 | grep -q "aarch64"; then echo "Error: Not ARM64"; exit 1; fi
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sing-box-linux-arm64-ebpf
           path: sing-box-linux-arm64
