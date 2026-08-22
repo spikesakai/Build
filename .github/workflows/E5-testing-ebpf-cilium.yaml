@@ -86,7 +86,7 @@ jobs:
           GOARCH: arm64
           CGO_ENABLED: 0
           CC: aarch64-linux-gnu-gcc
-          TAGS: with_gvisor,with_quic,with_dhcp,with_utls,with_clash_api,with_ebpf,badlinkname,tfogo_checklinkname0
+          TAGS: with_quic,with_utls,with_clash_api,with_ebpf,badlinkname,tfogo_checklinkname0
           LDFLAGS: "-X 'github.com/sagernet/sing-box/constant.Version=${{ github.event.inputs.custom_version }}' -s -w -buildid= -checklinkname=0"
         run: |
           make build TAGS="$TAGS" LDFLAGS="$LDFLAGS"
