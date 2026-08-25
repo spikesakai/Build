@@ -7,7 +7,7 @@ on:
         description: 'Source ref to build (tag/branch/commit)'
         type: string
         required: true
-        default: 'testing-ref1nd'
+        default: 'testing-ebpf-cilium'
 
 jobs:
   verifier:
@@ -38,7 +38,11 @@ jobs:
           CLEAN_VERSION="${RAW_VERSION#v}"
           CLEAN_VERSION="${CLEAN_VERSION%-reF1nd}"
           SHORT_SHA=$(git rev-parse --short=8 HEAD)
-          FINAL_VERSION="${CLEAN_VERSION}-${SHORT_SHA}"
+          if [[ "$CLEAN_VERSION" == *"$SHORT_SHA"* ]]; then
+            FINAL_VERSION="e5-${CLEAN_VERSION}"
+          else
+            FINAL_VERSION="e5-${CLEAN_VERSION}-${SHORT_SHA}"
+          fi
 
           echo "version=${FINAL_VERSION}" >> "$GITHUB_OUTPUT"
           echo "Raw: $RAW_VERSION"
