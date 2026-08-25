@@ -83,7 +83,7 @@ jobs:
           GOARCH: arm64
           CGO_ENABLED: 0
           VERSION: ${{ needs.verifier.outputs.detected_version }}
-          TAGS: with_ebpf,with_quic,with_utls,with_clash_api,badlinkname,tfogo_checklinkname0
+          TAGS: with_ebpf,with_quic,with_utls,with_clash_api
         run: |
           set -euo pipefail
 
