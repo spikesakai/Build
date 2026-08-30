@@ -22,6 +22,15 @@ jobs:
           ref: ${{ github.event.inputs.source_ref }}
           fetch-depth: 0
 
+      - name: Fetch common/ebpf from testing-ebpf-tc-rewrite
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin testing-ebpf-tc-rewrite
+          git checkout origin/testing-ebpf-tc-rewrite -- common/ebpf
+          echo "Successfully fetched common/ebpf:"
+          ls -la common/ebpf/
+
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
@@ -52,14 +61,14 @@ jobs:
       - name: Verify checked-in eBPF objects
         run: |
           set -euo pipefail
-          test -f common/ebpf/internal/bpfgen/cgroup_bpfel.o
-          test -f common/ebpf/internal/bpfgen/shared_network_bpfel.o
-          test -f common/ebpf/internal/bpfgen/splice_bpfel.o
+          test -f common/ebpf/internal/bpfgen/tc_bpfel.o
+          test -f common/ebpf/internal/bpfgen/tc_bpfeb.o
+          ls -la common/ebpf/internal/bpfgen/
 
       - name: Run focused eBPF tests
         shell: bash
         run: |
-          go test -v -count=1 -tags "with_ebpf" ./common/ebpf ./protocol/ebpf ./include ./option
+          go test -v -count=1 -tags "with_ebpf" ./common/ebpf/...
 
   build:
     needs: verifier
@@ -71,6 +80,15 @@ jobs:
           repository: CHIZI-0618/sing-box
           ref: ${{ github.event.inputs.source_ref }}
           fetch-depth: 0
+
+      - name: Fetch common/ebpf from testing-ebpf-tc-rewrite
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin testing-ebpf-tc-rewrite
+          git checkout origin/testing-ebpf-tc-rewrite -- common/ebpf
+          echo "Successfully fetched common/ebpf:"
+          ls -la common/ebpf/
 
       - name: Setup Go
         uses: actions/setup-go@v6
