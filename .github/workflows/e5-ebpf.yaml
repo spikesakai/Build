@@ -7,7 +7,7 @@ on:
         description: 'Source ref to build (tag/branch/commit)'
         type: string
         required: true
-        default: 'testing-ref1nd'
+        default: 'reF1nd-testing-next'
 
 jobs:
   verifier:
