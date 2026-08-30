@@ -54,12 +54,12 @@ jobs:
           set -euo pipefail
           test -f common/ebpf/internal/bpfgen/cgroup_bpfel.o
           test -f common/ebpf/internal/bpfgen/shared_network_bpfel.o
-          test -f common/ebpf/internal/bpfgen/splice_bpfel.o
+          ls -la common/ebpf/internal/bpfgen/
 
       - name: Run focused eBPF tests
         shell: bash
         run: |
-          go test -v -count=1 -tags "with_ebpf" ./common/ebpf ./protocol/ebpf ./include ./option
+          go test -v -count=1 -tags "with_ebpf" ./common/ebpf/...
 
   build:
     needs: verifier
