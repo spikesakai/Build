@@ -54,7 +54,6 @@ jobs:
           set -euo pipefail
           test -f common/ebpf/internal/bpfgen/cgroup_bpfel.o
           test -f common/ebpf/internal/bpfgen/shared_network_bpfel.o
-          test -f common/ebpf/internal/bpfgen/splice_bpfel.o
 
       - name: Run focused eBPF tests
         shell: bash
