@@ -25,7 +25,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
-          go-version: '1.27.0'
+          go-version: '1.27.1'
 
       - name: Determine Version
         id: version
@@ -52,8 +52,13 @@ jobs:
       - name: Verify checked-in eBPF objects
         run: |
           set -euo pipefail
-          test -f common/ebpf/internal/bpfgen/tc_bpfel.o
-          test -f common/ebpf/internal/bpfgen/tc_bpfeb.o
+          for name in cgroup cgroup_coarse cgroup_storage shared_network tc; do
+            test -f "common/ebpf/internal/bpfgen/${name}_bpfel.o"
+            test -f "common/ebpf/internal/bpfgen/${name}_bpfeb.o"
+            test -f "common/ebpf/internal/bpfgen/${name}_bpfel.go"
+            test -f "common/ebpf/internal/bpfgen/${name}_bpfeb.go"
+          done
+          echo "All eBPF objects verified successfully."
 
       - name: Run focused eBPF tests
         shell: bash
@@ -74,7 +79,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
-          go-version: '1.27.0'
+          go-version: '1.27.1'
 
       - name: Build for Linux ARM64
         env:
