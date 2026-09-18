@@ -2,6 +2,12 @@ name: Build Android APK Only
 
 on:
   workflow_dispatch:
+    inputs:
+      branch:
+        description: '请输入要构建的上游分支名 (例如: Android 或 feat/android-next-blue-icons)'
+        required: true
+        default: 'Android'
+        type: string
 
 defaults:
   run:
@@ -15,23 +21,23 @@ jobs:
 
     steps:
       - name: 检出上游项目代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: 'SPlayer-CE/SPlayer-for-Android-Next'
-          ref: 'Android'
+          ref: ${{ inputs.branch }}
           fetch-depth: 1
 
       - name: 配置 pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v5
 
       - name: 配置 Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: pnpm
 
       - name: 配置 Java 环境
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 21
@@ -63,33 +69,31 @@ jobs:
       - name: 构建 WebView 与嵌入 Node 资源
         run: pnpm build:android
 
-      - name: 编译 Release APK (仅构建 arm64-v8a)
+      - name: 编译 Release APK (标准流程)
         run: |
           cd android
           chmod +x gradlew
-          echo "android.injected.build.abi=arm64-v8a" >> gradle.properties
-          ./gradlew assembleRelease -Pandroid.injected.build.abi=arm64-v8a --stacktrace
+          ./gradlew assembleRelease --stacktrace
 
       - name: 收集 arm64-v8a APK 产物
         run: |
           mkdir -p dist-android
-          if [ -f "android/app/build/outputs/apk/release/app-arm64-v8a-release.apk" ]; then
-            cp "android/app/build/outputs/apk/release/app-arm64-v8a-release.apk" "dist-android/SPlayer-Next-arm64-v8a.apk"
+          src="android/app/build/outputs/apk/release/app-arm64-v8a-release.apk"
+          if [ -f "$src" ]; then
+            cp "$src" "dist-android/SPlayer-Next-arm64-v8a.apk"
+            echo "成功提取 arm64-v8a 架构包！"
           elif [ -f "android/app/build/outputs/apk/release/app-release.apk" ]; then
             cp "android/app/build/outputs/apk/release/app-release.apk" "dist-android/SPlayer-Next-arm64-v8a.apk"
+            echo "成功提取 Release 通用包！"
           else
-            FOUND_APK=$(find android/app/build/outputs/apk/release -name "*.apk" | head -n 1)
-            if [ -n "$FOUND_APK" ]; then
-              cp "$FOUND_APK" "dist-android/SPlayer-Next-arm64-v8a.apk"
-            else
-              echo "未找到生成的 APK，请查看上方构建日志"
-              exit 1
-            fi
+            echo "❌ 未找到 arm64-v8a 安装包，输出目录内容如下："
+            ls -la android/app/build/outputs/apk/release/ || true
+            exit 1
           fi
           ls -la dist-android
 
       - name: 上传 APK 到 Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: SPlayer-Next-arm64-v8a
           path: dist-android/*.apk
