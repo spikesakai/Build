@@ -93,7 +93,7 @@ jobs:
           ls -la dist-android
 
       - name: 上传 APK 到 Artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: SPlayer-Next-arm64-v8a
           path: dist-android/*.apk
