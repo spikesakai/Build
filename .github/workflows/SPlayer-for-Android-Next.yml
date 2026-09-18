@@ -1,12 +1,7 @@
 name: Build Android APK Only
 
 on:
-  workflow_dispatch: # 支持在 GitHub 网页 Actions 页面手动点击 "Run workflow" 触发
-  push:
-    branches:
-      - Android # 或者改为你的分支名，比如 main
-    paths-ignore:
-      - '**.md'
+  workflow_dispatch:
 
 defaults:
   run:
@@ -19,10 +14,9 @@ jobs:
       contents: read
 
     steps:
-      - name: 检出代码
+      - name: 检出上游项目代码
         uses: actions/checkout@v4
         with:
-          # 如果你是在自己的空仓库里跑，想直接拉取上游仓库代码，取消下面两行的注释：
           repository: 'SPlayer-CE/SPlayer-for-Android-Next'
           ref: 'Android'
           fetch-depth: 1
@@ -69,28 +63,34 @@ jobs:
       - name: 构建 WebView 与嵌入 Node 资源
         run: pnpm build:android
 
-      - name: 编译 Release APK
-        run: cd android && ./gradlew assembleRelease --stacktrace
+      - name: 编译 Release APK (仅构建 arm64-v8a)
+        run: |
+          cd android
+          chmod +x gradlew
+          echo "android.injected.build.abi=arm64-v8a" >> gradle.properties
+          ./gradlew assembleRelease -Pandroid.injected.build.abi=arm64-v8a --stacktrace
 
-      - name: 收集 APK 产物
+      - name: 收集 arm64-v8a APK 产物
         run: |
           mkdir -p dist-android
-          for abi in armeabi-v7a arm64-v8a x86 x86_64 universal; do
-            # 兼容单架构包或通用包命名
-            src="android/app/build/outputs/apk/release/app-${abi}-release.apk"
-            if [ -f "$src" ]; then
-              cp "$src" "dist-android/SPlayer-Next-${abi}.apk"
+          if [ -f "android/app/build/outputs/apk/release/app-arm64-v8a-release.apk" ]; then
+            cp "android/app/build/outputs/apk/release/app-arm64-v8a-release.apk" "dist-android/SPlayer-Next-arm64-v8a.apk"
+          elif [ -f "android/app/build/outputs/apk/release/app-release.apk" ]; then
+            cp "android/app/build/outputs/apk/release/app-release.apk" "dist-android/SPlayer-Next-arm64-v8a.apk"
+          else
+            FOUND_APK=$(find android/app/build/outputs/apk/release -name "*.apk" | head -n 1)
+            if [ -n "$FOUND_APK" ]; then
+              cp "$FOUND_APK" "dist-android/SPlayer-Next-arm64-v8a.apk"
+            else
+              echo "未找到生成的 APK，请查看上方构建日志"
+              exit 1
             fi
-          done
-          # 如果是未分包的单一 APK
-          if [ -f "android/app/build/outputs/apk/release/app-release.apk" ]; then
-            cp "android/app/build/outputs/apk/release/app-release.apk" "dist-android/SPlayer-Next-universal.apk"
           fi
           ls -la dist-android
 
-      - name: 上传 APK 到 Artifacts (供网页下载)
+      - name: 上传 APK 到 Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: SPlayer-Next-APKs
+          name: SPlayer-Next-arm64-v8a
           path: dist-android/*.apk
-          retention-days: 7 # 产物保留天数，默认最长 90 天
+          retention-days: 7
