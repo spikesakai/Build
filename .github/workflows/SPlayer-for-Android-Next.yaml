@@ -1,21 +1,13 @@
-name: Build Android APK Only
+name: Android Build
 
 on:
   workflow_dispatch:
     inputs:
       branch:
-        description: '选择构建分支 (例如: Android 或 feat/android-next-blue-icons)'
+        description: '选择构建分支'
         required: true
         default: 'Android'
         type: string
-      build_type:
-        description: '构建类型 (未配置签名 secrets 请务必选 debug，保证能正常打开)'
-        required: true
-        default: 'debug'
-        type: choice
-        options:
-          - debug
-          - release
 
 defaults:
   run:
@@ -25,56 +17,34 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
 
     steps:
-      - name: 检出上游项目代码
-        uses: actions/checkout@v5
+      # 严格保留原作者的完整 git 历史检出
+      - uses: actions/checkout@v4
         with:
           repository: 'SPlayer-CE/SPlayer-for-Android-Next'
           ref: ${{ inputs.branch }}
-          fetch-depth: 1
+          fetch-depth: 0
 
-      - name: 配置 pnpm
-        uses: pnpm/action-setup@v5
+      - uses: pnpm/action-setup@v4
 
-      - name: 配置 Node.js
-        uses: actions/setup-node@v5
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
 
-      - name: 配置 Java 环境
-        uses: actions/setup-java@v5
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 21
           cache: gradle
 
-      - name: 准备 .env 环境变量文件
-        run: |
-          if [ ! -f .env ] && [ -f .env.example ]; then
-            cp .env.example .env
-            echo "已从 .env.example 生成 .env"
-          fi
-
-      - name: 安装项目依赖
+      - name: 安装依赖
         run: pnpm install --frozen-lockfile
 
-      - name: 构建 Web 前端资源
-        run: pnpm build:web
-
-      - name: 同步 Capacitor 原生工程
-        run: npx cap sync android
-
-      - name: 构建内置 Node API Bundle
-        run: pnpm build:android:node
-
-      - name: 注入内置 Android 嵌入式资源 (解决卡启动界面的核心)
-        run: pnpm prepare:android:embedded
-
-      - name: 配置 Release 签名 (仅当选择 release 且配置了 Secrets 时生效)
-        if: ${{ inputs.build_type == 'release' }}
+      # 原版签名配置与回退逻辑，原封不动
+      - name: 配置签名
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -89,56 +59,38 @@ jobs:
               echo "keyAlias=$KEY_ALIAS"
               echo "keyPassword=$KEY_PASSWORD"
             } > android/key.properties
-            echo "已配置正式签名"
+            echo "已从 secrets 恢复正式签名密钥"
           else
-            echo "⚠️ 未检测到签名 Secrets，建议使用 debug 类型构建"
+            echo "未配置签名 secrets，回退 debug 签名（app/build.gradle 自带回退逻辑）"
           fi
 
-      - name: 编译 APK
+      # 严格使用原版的整体构建脚本，不再人工拆解
+      - name: 构建 WebView 与嵌入 Node 资源
+        run: pnpm build:android
+
+      # 严格使用原版 Release 编译命令
+      - name: 构建 Release APK
         run: |
           cd android
           chmod +x gradlew
-          if [ "${{ inputs.build_type }}" = "release" ]; then
-            ./gradlew assembleRelease --stacktrace
-          else
-            ./gradlew assembleDebug --stacktrace
-          fi
+          ./gradlew assembleRelease --stacktrace
 
-      - name: 收集 arm64-v8a APK 产物
+      # 仅提取你要的 arm64-v8a 架构包
+      - name: 收集 arm64-v8a APK
         run: |
           mkdir -p dist-android
-          BUILD_TYPE="${{ inputs.build_type }}"
-          APK_DIR="android/app/build/outputs/apk/${BUILD_TYPE}"
-
-          if [ -f "${APK_DIR}/app-arm64-v8a-${BUILD_TYPE}.apk" ]; then
-            cp "${APK_DIR}/app-arm64-v8a-${BUILD_TYPE}.apk" "dist-android/SPlayer-Next-${BUILD_TYPE}-arm64-v8a.apk"
-          elif [ -f "${APK_DIR}/app-${BUILD_TYPE}.apk" ]; then
-            cp "${APK_DIR}/app-${BUILD_TYPE}.apk" "dist-android/SPlayer-Next-${BUILD_TYPE}-arm64-v8a.apk"
-          else
-            FOUND=$(find "${APK_DIR}" -name "*.apk" | grep -E "arm64|universal" | head -n 1)
-            [ -z "$FOUND" ] && FOUND=$(find "${APK_DIR}" -name "*.apk" | head -n 1)
-            if [ -n "$FOUND" ]; then
-              cp "$FOUND" "dist-android/SPlayer-Next-${BUILD_TYPE}-arm64-v8a.apk"
-            else
-              echo "❌ 未找到生成的 APK，当前 ${APK_DIR} 目录内容："
-              ls -la "${APK_DIR}" || true
-              exit 1
-            fi
+          src="android/app/build/outputs/apk/release/app-arm64-v8a-release.apk"
+          if [ -f "$src" ]; then
+            cp "$src" "dist-android/SPlayer-Next-${{ inputs.branch }}-arm64-v8a.apk"
+          elif [ -f "android/app/build/outputs/apk/release/app-release.apk" ]; then
+            cp "android/app/build/outputs/apk/release/app-release.apk" "dist-android/SPlayer-Next-${{ inputs.branch }}-arm64-v8a.apk"
           fi
           ls -la dist-android
 
-      - name: 更新固定 Release (直接下载 APK)
-        uses: softprops/action-gh-release@v2
+      # 严格走 Artifacts 上传 zip 产物，不发任何 Release
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: latest
-          name: "SPlayer-Next 最新可用构建"
-          body: |
-            - 构建分支：`${{ inputs.branch }}`
-            - 构建类型：`${{ inputs.build_type }}`
-            - 目标架构：**arm64-v8a**
-            - 已完整注入内置 Node.js 运行时与前端资源。
-          files: dist-android/*.apk
-          draft: false
-          prerelease: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: SPlayer-Next-arm64-v8a
+          path: dist-android/*.apk
+          retention-days: 7
