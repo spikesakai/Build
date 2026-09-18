@@ -74,11 +74,12 @@ jobs:
       - name: 收集 arm64-v8a APK
         run: |
           mkdir -p dist-android
+          SAFE_BRANCH=$(echo "${{ inputs.branch }}" | tr '/' '-')
           src="android/app/build/outputs/apk/release/app-arm64-v8a-release.apk"
           if [ -f "$src" ]; then
-            cp "$src" "dist-android/SPlayer-Next-${{ inputs.branch }}-arm64-v8a.apk"
+            cp "$src" "dist-android/SPlayer-Next-${SAFE_BRANCH}-arm64-v8a.apk"
           elif [ -f "android/app/build/outputs/apk/release/app-release.apk" ]; then
-            cp "android/app/build/outputs/apk/release/app-release.apk" "dist-android/SPlayer-Next-${{ inputs.branch }}-arm64-v8a.apk"
+            cp "android/app/build/outputs/apk/release/app-release.apk" "dist-android/SPlayer-Next-${SAFE_BRANCH}-arm64-v8a.apk"
           fi
           ls -la dist-android
 
