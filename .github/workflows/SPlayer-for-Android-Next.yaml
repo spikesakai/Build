@@ -1,6 +1,6 @@
 name: Build SPlayer (arm64-v8a)
 
-# 仅手动触发
+# 仅手动点击触发
 on:
   workflow_dispatch:
 
@@ -8,15 +8,15 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      # 1. 直接拉取原作者 Android 分支源码（附带拉取 C++ 依赖子模块，防止 CMake 报错）
-      - name: 拉取源码
+      # 1. 远程拉取原项目源码及 C++ 子模块
+      - name: 拉取原项目源码
         uses: actions/checkout@v4
         with:
           repository: SPlayer-CE/SPlayer-for-Android-Next
           ref: Android
           submodules: recursive
 
-      # 2. 准备 Node 与 pnpm（自动匹配项目 11.10.0 版本）
+      # 2. 准备 pnpm 与 Node.js 22 环境
       - name: 安装 pnpm
         uses: pnpm/action-setup@v4
 
@@ -26,39 +26,36 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      # 3. 准备 Java 环境
+      # 3. 升级使用最新的 setup-java@v5，消除废弃警告
       - name: 设置 Java 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 21
           cache: gradle
 
-      # 4. 安装依赖并构建原生资源
-      - name: 安装依赖与构建资源
-        run: |
-          pnpm install
-          pnpm build:android
+      # 4. 原版依赖安装
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile
 
-      # 5. 【核心修复】：注入明文 HTTP 权限（彻底解决装不上插件的问题）
-      - name: 修复插件网络通信权限
-        run: |
-          sed -i 's/<application/<application android:usesCleartextTraffic="true"/' android/app/src/main/AndroidManifest.xml
+      # 5. 原版资源构建（WebView 与内嵌 Node）
+      - name: 构建 WebView 与嵌入 Node 资源
+        run: pnpm build:android
 
-      # 6. 编译 Release APK
-      - name: 构建 APK
+      # 6. 原版 Release APK 构建
+      - name: 构建 Release APK
         run: |
           chmod +x android/gradlew
           cd android && ./gradlew assembleRelease --stacktrace
 
-      # 7. 仅提取 arm64-v8a 架构包
-      - name: 提取 arm64-v8a APK
+      # 7. 仅筛选提取 arm64-v8a 架构包
+      - name: 收集 arm64-v8a APK
         run: |
           mkdir -p output
           find android/app/build/outputs/apk/ -type f -name "*arm64-v8a*.apk" -exec cp {} output/ \;
           ls -la output
 
-      # 8. 上传到 Actions 下载区
+      # 8. 上传到 Actions Artifacts 下载区
       - name: 上传 APK
         uses: actions/upload-artifact@v4
         with:
