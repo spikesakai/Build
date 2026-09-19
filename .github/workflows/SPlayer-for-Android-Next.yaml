@@ -1,47 +1,71 @@
 name: Android Build
 
 on:
-  workflow_dispatch:
-    inputs:
-      branch:
-        description: '选择构建分支或 Tag (例如: Android 或 v1.1.1)'
-        required: true
-        default: 'Android'
-        type: string
+  push:
+    branches: [Android]
+    tags: ["v*"]
+  pull_request:
+    branches: [Android]
 
 defaults:
   run:
     shell: bash
 
 jobs:
-  build:
+  # PR 时做构建前置校验 + 静态检查（内嵌 Node 打包 / ktlint / Kotlin 编译 / detekt），拦截破坏构建的改动
+  check:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read
-
     steps:
-      - uses: actions/checkout@v5
-        with:
-          repository: 'SPlayer-CE/SPlayer-for-Android-Next'
-          ref: ${{ inputs.branch }}
-          fetch-depth: 0
-
-      - uses: pnpm/action-setup@v5
-
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile
+      - name: 构建 Web 并同步 Capacitor
+        # android 工程配置阶段依赖 cap sync 产物（capacitor-cordova-android-plugins/cordova.variables.gradle 等），
+        # 新克隆仓库必须先 build:web + cap sync，否则 gradle 配置阶段即报脚本不存在
+        run: pnpm build:web && pnpm cap:sync
+      - name: 校验内嵌 Node 服务打包
+        # API/ 是内嵌 Node.js Mobile 服务源，PR 常改它；其 esbuild 打包曾因对 electron/main 的隐性依赖回归而失败，
+        # 而 gradle 静态校验只覆盖 Kotlin，故单独守护 build:android:node
+        run: pnpm build:android:node
+      - name: 静态校验
+        # 直接用 ./gradlew：package.json 的 android:check 用裸 gradlew，在 Linux bash 下当前目录不在 PATH 会报 gradlew not found
+        run: cd android && ./gradlew ktlintCheck compileKotlin detekt
 
-      - uses: actions/setup-java@v5
+  # push Android 分支 / 打 tag 时构建 Release 签名 APK（分 ABI 出包）
+  build:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      # 完整历史：tag 构建需读取上一 tag..当前 tag 区间的提交正文生成 Release 说明
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 21
           cache: gradle
-
       - name: 安装依赖
         run: pnpm install --frozen-lockfile
-
       - name: 配置签名
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -62,30 +86,61 @@ jobs:
             echo "未配置签名 secrets，回退 debug 签名（app/build.gradle 自带回退逻辑）"
           fi
 
-      - name: 构建 WebView 与嵌入 Node 资源
-        run: pnpm build:android
+      # 【修复点 1】：显式执行 Web 打包、Node 服务编译与 Capacitor 原生同步，确保插件底层桥接与 Node 核心资产不遗漏
+      - name: 构建 Web、编译内嵌 Node 服务并同步 Capacitor
+        run: |
+          pnpm build:web
+          pnpm build:android:node
+          pnpm cap:sync
+
+      # 【修复点 2】：自动放行本地明文 HTTP 通信，防止 Android 默认拦截 WebView 与内嵌 Node (127.0.0.1) 之间的插件通信
+      - name: 配置 Android 网络安全权限 (允许明文 HTTP)
+        run: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          if grep -q "android:usesCleartextTraffic" "$MANIFEST"; then
+            echo "已存在 usesCleartextTraffic 配置，跳过修改"
+          else
+            sed -i 's/<application/<application android:usesCleartextTraffic="true"/' "$MANIFEST"
+            echo "已成功注入 android:usesCleartextTraffic=\"true\""
+          fi
 
       - name: 构建 Release APK
-        run: |
-          cd android
-          chmod +x gradlew
-          ./gradlew assembleRelease --stacktrace
-
-      - name: 收集 arm64-v8a APK
+        run: cd android && ./gradlew assembleRelease --stacktrace
+      - name: 收集 APK
         run: |
           mkdir -p dist-android
-          SAFE_BRANCH=$(echo "${{ inputs.branch }}" | tr '/' '-')
-          src="android/app/build/outputs/apk/release/app-arm64-v8a-release.apk"
-          if [ -f "$src" ]; then
-            cp "$src" "dist-android/SPlayer-Next-${SAFE_BRANCH}-arm64-v8a.apk"
-          elif [ -f "android/app/build/outputs/apk/release/app-release.apk" ]; then
-            cp "android/app/build/outputs/apk/release/app-release.apk" "dist-android/SPlayer-Next-${SAFE_BRANCH}-arm64-v8a.apk"
-          fi
+          for abi in armeabi-v7a arm64-v8a x86 x86_64; do
+            src="android/app/build/outputs/apk/release/app-${abi}-release.apk"
+            if [ -f "$src" ]; then
+              cp "$src" "dist-android/SPlayer-Next-${GITHUB_REF_NAME}-${abi}.apk"
+            fi
+          done
           ls -la dist-android
-
       - name: 上传构建产物
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
-          name: SPlayer-Next-arm64-v8a
+          name: SPlayer-Next-APKs-${{ github.run_number }}
           path: dist-android/*.apk
-          retention-days: 7
+      - name: 生成 Release 说明
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          PREV="$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || true)"
+          RANGE="${PREV:+$PREV..}${GITHUB_REF_NAME}"
+          {
+            echo "## 提交详情"
+            echo
+            # 转义 @提及（如提交正文里的 Kotlin 注解 @Synchronized 会被 GitHub 渲染成对用户 @synchronized 的引用）
+            git log --no-merges --format='### %s (%h)%n%n%b%n' "$RANGE" \
+              | sed -E 's/@([A-Za-z0-9][A-Za-z0-9-]*)/\\@\1/g'
+            if [ -n "$PREV" ]; then
+              echo "**Full Changelog**: https://github.com/${GITHUB_REPOSITORY}/compare/${PREV}...${GITHUB_REF_NAME}"
+            fi
+          } > release-notes.md
+          cat release-notes.md
+      - name: 发布到 GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist-android/*.apk
+          body_path: release-notes.md
+          generate_release_notes: true
