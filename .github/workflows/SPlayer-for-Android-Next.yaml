@@ -14,17 +14,16 @@ jobs:
     permissions:
       contents: read
     steps:
-      # 【核心改动】：直接拉取原作者项目的 Android 分支源码
+      # 拉取原作者项目的 Android 分支源码
       - name: 拉取原项目源码
         uses: actions/checkout@v4
         with:
           repository: SPlayer-CE/SPlayer-for-Android-Next
           ref: Android
 
+      # 【修复冲突】：直接让插件读取 package.json 中指定的 pnpm 版本（自动使用 11.10.0）
       - name: 安装 pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - name: 设置 Node.js 22
         uses: actions/setup-node@v4
@@ -70,11 +69,10 @@ jobs:
           chmod +x android/gradlew
           cd android && ./gradlew assembleRelease --stacktrace
 
-      # 收集打包出来的所有 APK 文件（做保底兼容收集）
+      # 收集打包出来的所有 APK 文件
       - name: 收集生成的 APK
         run: |
           mkdir -p dist-android
-          # 自动寻找所有生成的 apk 并复制出来
           find android/app/build/outputs/apk/ -type f -name "*.apk" -exec cp {} dist-android/ \;
           ls -la dist-android
 
