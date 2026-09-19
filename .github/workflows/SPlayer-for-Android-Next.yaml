@@ -1,27 +1,22 @@
-name: Remote SPlayer Android Build
+name: Build SPlayer (arm64-v8a)
 
-# 仅由你在网页端点击 "Run workflow" 手动触发打包
+# 仅手动触发
 on:
   workflow_dispatch:
-
-defaults:
-  run:
-    shell: bash
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     steps:
-      # 拉取原作者项目的 Android 分支源码
-      - name: 拉取原项目源码
+      # 1. 直接拉取原作者 Android 分支源码（附带拉取 C++ 依赖子模块，防止 CMake 报错）
+      - name: 拉取源码
         uses: actions/checkout@v4
         with:
           repository: SPlayer-CE/SPlayer-for-Android-Next
           ref: Android
+          submodules: recursive
 
-      # 【修复冲突】：直接让插件读取 package.json 中指定的 pnpm 版本（自动使用 11.10.0）
+      # 2. 准备 Node 与 pnpm（自动匹配项目 11.10.0 版本）
       - name: 安装 pnpm
         uses: pnpm/action-setup@v4
 
@@ -31,6 +26,7 @@ jobs:
           node-version: 22
           cache: pnpm
 
+      # 3. 准备 Java 环境
       - name: 设置 Java 21
         uses: actions/setup-java@v4
         with:
@@ -38,48 +34,33 @@ jobs:
           java-version: 21
           cache: gradle
 
-      - name: 安装项目依赖
-        run: pnpm install
-
-      - name: 配置签名回退机制
+      # 4. 安装依赖并构建原生资源
+      - name: 安装依赖与构建资源
         run: |
-          echo "在个人仓库构建，自动回退使用 Debug 签名打包"
+          pnpm install
+          pnpm build:android
 
-      # 【核心修复】：完整打包 Web、Node 内嵌核心与 Capacitor 原生插件
-      - name: 构建 Web、编译 Node 核心服务并同步 Capacitor
+      # 5. 【核心修复】：注入明文 HTTP 权限（彻底解决装不上插件的问题）
+      - name: 修复插件网络通信权限
         run: |
-          pnpm build:web
-          pnpm build:android:node
-          pnpm cap:sync
+          sed -i 's/<application/<application android:usesCleartextTraffic="true"/' android/app/src/main/AndroidManifest.xml
 
-      # 【核心修复】：注入明文 HTTP 权限，防止手机拦截本地 Node 服务的插件网络通信
-      - name: 配置 Android 网络安全权限 (允许明文 HTTP)
-        run: |
-          MANIFEST="android/app/src/main/AndroidManifest.xml"
-          if grep -q "android:usesCleartextTraffic" "$MANIFEST"; then
-            echo "已存在 usesCleartextTraffic 配置，跳过修改"
-          else
-            sed -i 's/<application/<application android:usesCleartextTraffic="true"/' "$MANIFEST"
-            echo "已成功注入 android:usesCleartextTraffic=\"true\""
-          fi
-
-      # 编译 Android Release APK
+      # 6. 编译 Release APK
       - name: 构建 APK
         run: |
           chmod +x android/gradlew
           cd android && ./gradlew assembleRelease --stacktrace
 
-      # 收集打包出来的所有 APK 文件
-      - name: 收集生成的 APK
+      # 7. 仅提取 arm64-v8a 架构包
+      - name: 提取 arm64-v8a APK
         run: |
-          mkdir -p dist-android
-          find android/app/build/outputs/apk/ -type f -name "*.apk" -exec cp {} dist-android/ \;
-          ls -la dist-android
+          mkdir -p output
+          find android/app/build/outputs/apk/ -type f -name "*arm64-v8a*.apk" -exec cp {} output/ \;
+          ls -la output
 
-      # 上传到 Actions Artifacts 供下载
-      - name: 上传 APK 到 Actions Artifacts
+      # 8. 上传到 Actions 下载区
+      - name: 上传 APK
         uses: actions/upload-artifact@v4
         with:
-          name: SPlayer-Next-APKs-${{ github.run_number }}
-          path: dist-android/*.apk
-          retention-days: 30
+          name: SPlayer-Next-arm64-v8a
+          path: output/*.apk
