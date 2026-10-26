@@ -6,7 +6,7 @@ on:
       branch:
         description: '选择构建的分支或标签 (Branch or Tag)'
         required: true
-        default: 'main'
+        default: 'Android'
         type: string
 
 jobs:
