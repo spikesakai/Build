@@ -1,0 +1,13 @@
+{
+  "version": 5,
+  "rules": [
+    {
+      "domain_suffix": [
+        "next.halotv.top",
+        "c.emby.wtf",
+        "micro.cr18.eu.org",
+        "cf.aixj.de"
+      ]
+    }
+  ]
+}
