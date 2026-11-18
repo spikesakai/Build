@@ -1,0 +1,30 @@
+{
+  "version": 5,
+  "rules": [
+    {
+      "domain_suffix": [
+        "bikonoo.com",
+        "haitangw.cc",
+        "97abc.com",
+        "bileizhen.top",
+        "music.20110208.xyz",
+        "currentmusic.geekertao.com",
+        "music.ctcehs.com",
+        "guazi.fun",
+        "wwwweb.top",
+        "shiqianjiang.cn",
+        "hk.tannel.asia",
+        "331617.xyz",
+        "cn-1.lyrebirdemby.online",
+        "neixin.cn",
+        "emos.club",
+        "sharepoint.cn",
+        "sharepoint.com",
+        "emosstore.sbs",
+        "mhkami.com",
+        "yydsmh.com",
+        "2cycomic.com"
+      ]
+    }
+  ]
+}
