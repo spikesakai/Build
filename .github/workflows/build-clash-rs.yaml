@@ -3,39 +3,26 @@ name: Build CHKayanami/clash-rs (BPI-R4 ARM64)
 on:
   workflow_dispatch:
     inputs:
-      ref:
-        description: "上游 CHKayanami/clash-rs 分支 / Tag / Commit"
-        required: false
-        default: "master"
-        type: string
       variant:
-        description: "构建版本 (both=精简+标准 / minimal=精简 / standard=完整)"
+        description: "构建版本 (minimal=精简 / standard=完整 / both=两者都编)"
         required: false
-        default: "both"
+        default: "minimal"
         type: choice
         options:
-          - both
           - minimal
           - standard
+          - both
       opt_level:
         description: "Cargo 优化等级 (s=体积更小 / 3=性能最强)"
         required: false
-        default: "s"
+        default: "3"
         type: choice
         options:
           - "s"
           - "3"
-      publish_release:
-        description: "是否发布到当前仓库的 GitHub Releases"
-        required: false
-        default: true
-        type: boolean
-  # 如需每天定时自动拉取最新提交构建，取消下面两行注释（UTC 20:00 = 北京时间 04:00）：
-  # schedule:
-  #   - cron: "0 20 * * *"
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -43,6 +30,7 @@ concurrency:
 
 env:
   UPSTREAM_REPO: "CHKayanami/clash-rs"
+  UPSTREAM_REF: "master"
   TARGET_ARCH: "aarch64-unknown-linux-musl"
   CARGO_NET_GIT_FETCH_WITH_CLI: "true"
   ZIG_VERSION: "0.17.0"
@@ -58,7 +46,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: ${{ env.UPSTREAM_REPO }}
-          ref: ${{ inputs.ref || 'master' }}
+          ref: ${{ env.UPSTREAM_REF }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
@@ -90,7 +78,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: ${{ env.UPSTREAM_REPO }}
-          ref: ${{ inputs.ref || 'master' }}
+          ref: ${{ env.UPSTREAM_REF }}
 
       - name: Install Nightly Rust (for eBPF)
         uses: dtolnay/rust-toolchain@nightly
@@ -122,14 +110,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        variant: ${{ fromJSON((inputs.variant || 'both') == 'both' && '["minimal","standard"]' || format('["{0}"]', inputs.variant || 'both')) }}
+        variant: ${{ fromJSON((inputs.variant || 'minimal') == 'both' && '["minimal","standard"]' || format('["{0}"]', inputs.variant || 'minimal')) }}
 
     steps:
       - name: Checkout Upstream
         uses: actions/checkout@v6
         with:
           repository: ${{ env.UPSTREAM_REPO }}
-          ref: ${{ inputs.ref || 'master' }}
+          ref: ${{ env.UPSTREAM_REF }}
 
       - name: Install System Dependencies
         run: |
@@ -157,7 +145,7 @@ jobs:
           shared-key: zigbuild-${{ env.TARGET_ARCH }}-zig-${{ env.ZIG_VERSION }}-cargo-zigbuild-${{ env.CARGO_ZIGBUILD_VERSION }}-opt-${{ inputs.opt_level || 's' }}
           cmd-format: rustup run stable {0}
           cache-bin: false
-          save-if: ${{ matrix.variant == 'standard' || (inputs.variant || 'both') == 'minimal' }}
+          save-if: ${{ matrix.variant == 'standard' || (inputs.variant || 'minimal') == 'minimal' }}
 
       - name: Download Dashboard
         uses: actions/download-artifact@v8
@@ -191,62 +179,3 @@ jobs:
           retention-days: 7
           compression-level: 0
           if-no-files-found: error
-
-  # ── 4. 可选：打包发布到你当前仓库的 GitHub Releases ────────────────────────────
-  publish-release:
-    name: Publish to GitHub Release
-    needs: [build]
-    if: ${{ inputs.publish_release != false }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Upstream Metadata
-        uses: actions/checkout@v6
-        with:
-          repository: ${{ env.UPSTREAM_REPO }}
-          ref: ${{ inputs.ref || 'master' }}
-          fetch-depth: 10
-          path: upstream
-
-      - name: Extract Upstream Commit Info
-        id: meta
-        working-directory: upstream
-        run: |
-          SHORT_SHA=$(git rev-parse --short HEAD)
-          FULL_SHA=$(git rev-parse HEAD)
-          BUILD_DATE=$(date -u +%Y%m%d)
-          echo "short_sha=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
-          echo "date=${BUILD_DATE}" >> "$GITHUB_OUTPUT"
-          {
-            echo "## Upstream Source"
-            echo "- Repository: \`${{ env.UPSTREAM_REPO }}\`"
-            echo "- Ref: \`${{ inputs.ref || 'master' }}\`"
-            echo "- Commit: \`${FULL_SHA}\`"
-            echo "- Target: \`${{ env.TARGET_ARCH }}\` (\`jemallocator,ebpf\`, opt-level=\`${{ inputs.opt_level || 's' }}\`)"
-            echo ""
-            echo "### Recent Upstream Commits"
-            git log -n 10 --format='- %s (%h)'
-          } > ../release-notes.md
-
-      - name: Download Build Archives
-        uses: actions/download-artifact@v8
-        with:
-          pattern: clash-rs-*
-          path: artifacts
-
-      - name: Organize Release Assets
-        run: |
-          mkdir -p release_assets
-          find artifacts -type f -name "*.tar.gz" -exec cp {} release_assets/ \;
-          ls -lh release_assets/
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v3
-        with:
-          tag_name: clash-rs-${{ steps.meta.outputs.date }}-${{ steps.meta.outputs.short_sha }}
-          name: clash-rs (${{ steps.meta.outputs.date }} - ${{ steps.meta.outputs.short_sha }})
-          files: release_assets/*
-          draft: false
-          prerelease: false
-          body_path: release-notes.md
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
