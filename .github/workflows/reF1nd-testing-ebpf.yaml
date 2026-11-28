@@ -96,19 +96,21 @@ jobs:
           SHARED_LDFLAGS=""
           [ -f release/LDFLAGS ] && SHARED_LDFLAGS=$(cat release/LDFLAGS)
 
+          mkdir -p dist
           go build -v -trimpath \
             -tags "$TAGS" \
             -ldflags "-X 'github.com/sagernet/sing-box/constant.Version=${VERSION}' $SHARED_LDFLAGS -s -w -buildid= -checklinkname=0" \
-            -o "sing-box-${VERSION}-linux-arm64" \
+            -o "dist/sing-box" \
             ./cmd/sing-box
 
       - name: Verify binary architecture
         run: |
-          file sing-box-*
-          if ! file sing-box-* | grep -q "aarch64"; then echo "Error: Not ARM64"; exit 1; fi
+          file dist/sing-box
+          if ! file dist/sing-box | grep -q "aarch64"; then echo "Error: Not ARM64"; exit 1; fi
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
           name: sing-box-linux-arm64-ebpf
-          path: sing-box-*
+          path: dist/sing-box
+          if-no-files-found: error
