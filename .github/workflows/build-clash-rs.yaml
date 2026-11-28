@@ -241,18 +241,19 @@ jobs:
               changed = False
 
               def flush():
-                  nonlocal changed
                   if cur_name in ws_pkg_names and not has_source and ver_idx is not None:
                       raw = lines[ver_idx].rstrip("\r\n")
                       eol = lines[ver_idx][len(raw):]
                       m = re.match(r'^(\s*version\s*=\s*")([^"]+)(".*)$', raw)
                       if m and m.group(2) == base_ver:
                           lines[ver_idx] = f"{m.group(1)}{new_ver}{m.group(3)}{eol}"
-                          changed = True
+                          return True
+                  return False
 
               for idx, line in enumerate(lines):
                   if line.strip() == "[[package]]":
-                      flush()
+                      if flush():
+                          changed = True
                       cur_name = None
                       has_source = False
                       ver_idx = None
@@ -264,7 +265,8 @@ jobs:
                           has_source = True
                       elif re.match(r'^\s*version\s*=', line):
                           ver_idx = idx
-              flush()
+              if flush():
+                  changed = True
               if changed:
                   lock_path.write_text("".join(lines), encoding="utf-8")
                   print("Updated Cargo.lock")
