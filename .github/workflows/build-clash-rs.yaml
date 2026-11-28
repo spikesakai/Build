@@ -171,11 +171,28 @@ jobs:
           CLASH_DASHBOARD_PREBUILT: "1"
         run: bash scripts/build_zigbuild.sh
 
-      - name: Upload Archive
+      - name: Extract Binary (${{ matrix.variant }})
+        shell: bash
+        run: |
+          rm -rf tmp_extract upload_stage
+          mkdir -p tmp_extract upload_stage
+          tar -xzf "dist/${{ matrix.variant }}/clash-rs-${{ matrix.variant }}-${{ env.TARGET_ARCH }}.tar.gz" -C tmp_extract
+          BIN_PATH=$(find tmp_extract -type f -name "clash-rs" | head -n 1)
+          if [ -z "$BIN_PATH" ]; then
+            BIN_PATH=$(find tmp_extract -type f ! -name "*.sha256" ! -name "*.txt" ! -name "*.md" -executable | head -n 1)
+          fi
+          if [ -z "$BIN_PATH" ]; then
+            echo "Error: clash-rs binary not found in archive!"
+            ls -laR tmp_extract
+            exit 1
+          fi
+          mv "$BIN_PATH" upload_stage/clash-rs
+          chmod +x upload_stage/clash-rs
+
+      - name: Upload Binary
         uses: actions/upload-artifact@v7
         with:
           name: clash-rs-${{ matrix.variant }}-${{ env.TARGET_ARCH }}
-          path: dist/${{ matrix.variant }}/clash-rs-${{ matrix.variant }}-${{ env.TARGET_ARCH }}.tar.gz
+          path: upload_stage/clash-rs
           retention-days: 7
-          compression-level: 0
           if-no-files-found: error
