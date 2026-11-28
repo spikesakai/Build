@@ -129,10 +129,23 @@ jobs:
         with:
           targets: ${{ env.TARGET_ARCH }}
 
-      - name: Setup Zig
-        uses: goto-bus-stop/setup-zig@v2
+      - name: Cache Zig
+        uses: actions/cache@v5
         with:
-          version: ${{ env.ZIG_VERSION }}
+          path: ~/zig-${{ env.ZIG_VERSION }}
+          key: zig-x86_64-linux-${{ env.ZIG_VERSION }}
+
+      - name: Setup Zig
+        shell: bash
+        run: |
+          ZIG_DIR="$HOME/zig-${{ env.ZIG_VERSION }}"
+          if [ ! -x "$ZIG_DIR/zig" ]; then
+            mkdir -p "$ZIG_DIR"
+            curl -fsSL --retry 3 "https://ziglang.org/download/${{ env.ZIG_VERSION }}/zig-x86_64-linux-${{ env.ZIG_VERSION }}.tar.xz" \
+              | tar -xJ --strip-components=1 -C "$ZIG_DIR"
+          fi
+          echo "$ZIG_DIR" >> "$GITHUB_PATH"
+          "$ZIG_DIR/zig" version
 
       - name: Install cargo-zigbuild
         uses: taiki-e/install-action@v2
@@ -158,6 +171,104 @@ jobs:
         with:
           name: ebpf-bytecode
           path: target/bpfel-unknown-none/release
+
+      - name: Append Commit Hash to Version
+        shell: bash
+        run: |
+          python3 - <<'EOF'
+          import pathlib, re, subprocess, tomllib
+
+          sha = subprocess.check_output(
+              ["git", "rev-parse", "--short=7", "HEAD"], text=True
+          ).strip()
+
+          base_ver = None
+          for candidate in ("Cargo.toml", "clash-bin/Cargo.toml", "clash_lib/Cargo.toml"):
+              p = pathlib.Path(candidate)
+              if p.exists():
+                  data = tomllib.loads(p.read_text(encoding="utf-8"))
+                  base_ver = (
+                      data.get("workspace", {}).get("package", {}).get("version")
+                      or data.get("package", {}).get("version")
+                  )
+                  if base_ver:
+                      break
+
+          if not base_ver:
+              raise SystemExit("Cannot find base version in Cargo.toml")
+
+          new_ver = f"{base_ver}-{sha}" if "-" in base_ver else f"{base_ver}-g{sha}"
+          print(f"Version: {base_ver} -> {new_ver}")
+
+          ws_pkg_names = set()
+          for path in sorted(pathlib.Path(".").glob("**/Cargo.toml")):
+              if any(part in ("target", "clash-dashboard", ".git") for part in path.parts):
+                  continue
+              data = tomllib.loads(path.read_text(encoding="utf-8"))
+              pkg = data.get("package", {})
+              pkg_ver = pkg.get("version")
+              if pkg.get("name") and (
+                  pkg_ver == base_ver or pkg_ver == {"workspace": True}
+              ):
+                  ws_pkg_names.add(pkg["name"])
+
+              lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+              section = ""
+              changed = False
+              out = []
+              for line in lines:
+                  m_sec = re.match(r"^\s*\[([^\]]+)\]", line)
+                  if m_sec:
+                      section = m_sec.group(1).strip()
+                  if section in ("package", "workspace.package"):
+                      raw = line.rstrip("\r\n")
+                      eol = line[len(raw):]
+                      m_ver = re.match(r'^(\s*version\s*=\s*")([^"]+)(".*)$', raw)
+                      if m_ver and m_ver.group(2) == base_ver:
+                          line = f"{m_ver.group(1)}{new_ver}{m_ver.group(3)}{eol}"
+                          changed = True
+                  out.append(line)
+              if changed:
+                  path.write_text("".join(out), encoding="utf-8")
+                  print(f"Updated {path}")
+
+          lock_path = pathlib.Path("Cargo.lock")
+          if lock_path.exists() and ws_pkg_names:
+              lines = lock_path.read_text(encoding="utf-8").splitlines(keepends=True)
+              cur_name = None
+              has_source = False
+              ver_idx = None
+              changed = False
+
+              def flush():
+                  nonlocal changed
+                  if cur_name in ws_pkg_names and not has_source and ver_idx is not None:
+                      raw = lines[ver_idx].rstrip("\r\n")
+                      eol = lines[ver_idx][len(raw):]
+                      m = re.match(r'^(\s*version\s*=\s*")([^"]+)(".*)$', raw)
+                      if m and m.group(2) == base_ver:
+                          lines[ver_idx] = f"{m.group(1)}{new_ver}{m.group(3)}{eol}"
+                          changed = True
+
+              for idx, line in enumerate(lines):
+                  if line.strip() == "[[package]]":
+                      flush()
+                      cur_name = None
+                      has_source = False
+                      ver_idx = None
+                  else:
+                      m_name = re.match(r'^\s*name\s*=\s*"([^"]+)"', line)
+                      if m_name:
+                          cur_name = m_name.group(1)
+                      elif re.match(r'^\s*source\s*=', line):
+                          has_source = True
+                      elif re.match(r'^\s*version\s*=', line):
+                          ver_idx = idx
+              flush()
+              if changed:
+                  lock_path.write_text("".join(lines), encoding="utf-8")
+                  print("Updated Cargo.lock")
+          EOF
 
       - name: Build and Package (${{ matrix.variant }})
         shell: bash
